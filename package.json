@@ -1,0 +1,36 @@
+{
+  "name": "heury",
+  "version": "0.1.0",
+  "description": "Local-first codebase analysis tool for LLM discovery",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "heury": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "tsc --noEmit"
+  },
+  "license": "Elastic-2.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.3.1",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "better-sqlite3": "^12.6.2",
+    "commander": "^14.0.3",
+    "fast-glob": "^3.3.3",
+    "openai": "^6.25.0"
+  }
+}

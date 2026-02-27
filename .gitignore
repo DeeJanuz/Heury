@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+out/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage/
+*.test.log
+.test-results/
+__snapshots__/
+test-db-*
+*.test.db
+
+# TypeScript
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Heury data (local analysis results)
+.heury/
+
+# SQLite databases (generated, not source)
+*.sqlite
+*.sqlite3
+*.db
+
+# HNSW vector indexes (generated)
+*.hnsw
