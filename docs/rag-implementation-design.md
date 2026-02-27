@@ -44,15 +44,14 @@ interface EmbeddingIndex {
 }
 ```
 
-### 1.2 Recommended Approach
+### 1.2 Current Implementation
 
-Start with **hnswlib** for simplicity:
-- Pure in-memory index with file persistence
-- No native SQLite extension compilation needed
-- Fast nearest-neighbor search
-- Easy to rebuild from stored embeddings
-
-Fall back to sqlite-vss if query patterns demand more complex filtering (e.g., "find similar functions that are also exported and have complexity > 10").
+The initial implementation uses **InMemoryVectorSearch**, a pure-JavaScript cosine similarity search with no native dependencies:
+- Zero external dependencies (no hnswlib, no sqlite-vss)
+- Stores vectors in a Map keyed by ID
+- Brute-force cosine similarity on search
+- Suitable for small-to-medium codebases
+- Can be replaced with hnswlib or sqlite-vss via the port interface when performance requires it
 
 ---
 
@@ -93,21 +92,22 @@ Following DIP, the embedding provider is abstracted behind a port:
 // Port (domain layer)
 interface IEmbeddingProvider {
   generateEmbedding(text: string): Promise<number[]>;
-  generateBatchEmbeddings(texts: string[]): Promise<number[][]>;
-  getDimension(): number;
-  getModelName(): string;
+  generateEmbeddings(texts: string[]): Promise<number[][]>;
+  getDimensions(): number;
+}
+
+// Adapter: Local (default) - deterministic hash-based embeddings
+class LocalEmbeddingProvider implements IEmbeddingProvider {
+  // Uses SHA-256 hash expansion to produce deterministic vectors
+  // Default: 384 dimensions, configurable
+  // No external dependencies, no API key needed
+  // Suitable as a placeholder; can be replaced with ONNX-based model later
 }
 
 // Adapter: OpenAI
 class OpenAIEmbeddingProvider implements IEmbeddingProvider {
   // Uses text-embedding-3-small (1536 dimensions)
   // Requires OPENAI_API_KEY environment variable
-}
-
-// Adapter: Local model (future)
-class LocalEmbeddingProvider implements IEmbeddingProvider {
-  // Uses a local model like all-MiniLM-L6-v2 (384 dimensions)
-  // No API key needed, runs in-process
 }
 ```
 
@@ -156,38 +156,22 @@ Results: [
 ### 3.2 Search Interface
 
 ```typescript
-interface VectorSearchOptions {
-  query: string;
-  limit?: number;           // Default: 10
-  minSimilarity?: number;   // Default: 0.5
-
-  // Post-filters (applied after vector search)
-  filePath?: string;        // Filter by file path prefix
-  unitTypes?: string[];     // Filter by code unit type
-  patternTypes?: string[];  // Filter by detected patterns
-  maxComplexity?: number;   // Filter by complexity score
-  language?: string;        // Filter by language
+// Port (domain layer) - low-level vector operations
+interface IVectorSearchService {
+  index(id: string, embedding: number[], metadata: Record<string, unknown>): Promise<void>;
+  search(queryEmbedding: number[], limit: number): Promise<VectorSearchResult[]>;
+  delete(id: string): Promise<void>;
+  clear(): Promise<void>;
 }
 
 interface VectorSearchResult {
-  codeUnitId: string;
-  similarity: number;
-  filePath: string;
-  name: string;
-  unitType: string;
-  signature?: string;
-  patterns: Array<{ type: string; value: string }>;
-  complexityScore: number;
-}
-
-// Port
-interface IVectorSearchService {
-  search(options: VectorSearchOptions): Promise<VectorSearchResult[]>;
-  indexCodeUnits(codeUnits: EmbeddableCodeUnit[]): Promise<void>;
-  rebuildIndex(): Promise<void>;
-  getIndexStats(): Promise<{ totalVectors: number; dimension: number; model: string }>;
+  id: string;
+  score: number;           // Cosine similarity score
+  metadata: Record<string, unknown>;
 }
 ```
+
+The application layer (EmbeddingPipeline) coordinates between the embedding provider and vector search service, handling the higher-level workflow of embedding code units and searching by text query.
 
 ### 3.3 Hybrid Search
 
@@ -268,7 +252,9 @@ const vectorSearchDefinition = {
 
 ## 7. Future Considerations
 
-- **Local embedding models**: Remove dependency on OpenAI API for fully offline operation
+- **ONNX-based local embeddings**: Replace the hash-based placeholder with all-MiniLM-L6-v2 via ONNX Runtime for real semantic similarity
+- **hnswlib or sqlite-vss**: Upgrade from brute-force in-memory search to approximate nearest-neighbor for larger codebases
 - **Multi-project search**: Search across multiple analyzed codebases
 - **Embedding caching**: Cache embeddings for unchanged code to speed up re-analysis
 - **Dimension reduction**: Use lower-dimension models for smaller codebases to save memory
+- **Hybrid search**: Combine vector search with keyword search using weighted scoring

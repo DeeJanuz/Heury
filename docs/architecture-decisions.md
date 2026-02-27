@@ -206,7 +206,7 @@ Heury is a local-first codebase analysis tool. It needs to:
 #### Decision
 Use lightweight, local storage backends:
 - **SQLite** as the primary relational store (via better-sqlite3 or similar)
-- **Local vector search** via hnswlib, sqlite-vss, or similar library for embeddings
+- **Local vector search** via in-memory cosine similarity (pure JS, no native deps), upgradeable to hnswlib or sqlite-vss
 - **File system** for caching and temporary data
 - No cloud database dependencies (no Postgres, PlanetScale, etc.)
 
@@ -220,7 +220,7 @@ Use lightweight, local storage backends:
 - Zero-configuration: SQLite is embedded, no server needed
 - Fast for read-heavy workloads (code analysis is mostly reads after initial analysis)
 - Portable: single file database, easy to move or delete
-- Vector search libraries (hnswlib, sqlite-vss) work in-process
+- In-memory vector search works in-process with zero native dependencies
 - Well-supported in Node.js ecosystem
 
 #### Consequences
@@ -232,7 +232,7 @@ Use lightweight, local storage backends:
 
 **Negative:**
 - No concurrent write access (SQLite limitation, acceptable for single-user tool)
-- Vector search libraries may have native compilation requirements
+- In-memory vector search has O(n) complexity; may need indexing (hnswlib/sqlite-vss) for large codebases
 - Limited to single-machine use
 
 **Neutral:**
@@ -264,3 +264,4 @@ Use lightweight, local storage backends:
 | 2026-02-26 | ADR-002 | Initial: TypeScript adoption | System |
 | 2026-02-26 | ADR-003 | Initial: TDD strategy | System |
 | 2026-02-26 | ADR-004 | Initial: Local-first storage | System |
+| 2026-02-27 | ADR-004 | Updated: Reflect in-memory vector search implementation | System |

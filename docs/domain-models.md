@@ -183,17 +183,44 @@ OPTIONS
 
 ---
 
+## Complexity Models
+
+### ComplexityMetrics
+**Purpose:** Detailed complexity metrics calculated for each code unit.
+
+**Properties:**
+- conditionals: number - Count of if/else/ternary branching
+- loops: number - Count of for/while/do-while loops
+- maxNestingDepth: number - Deepest nesting level
+- tryCatchBlocks: number - Count of try/catch blocks
+- asyncPatterns: number - Count of async/await patterns
+- callbackDepth: number - Depth of callback nesting
+- parameterCount: number - Number of function parameters
+- lineCount: number - Total lines of code
+
+**Related Functions:**
+- `calculateComplexityScore(metrics)` - Weighted aggregate score
+- `getComplexityLevel(score)` - Returns 'simple' (<=15), 'moderate' (<=35), or 'complex'
+- `createEmptyMetrics()` - Factory for zero-initialized metrics
+
+---
+
 ## Extraction Service Interfaces
 
-### ILanguageExtractor
-**Purpose:** Port interface for language-specific code extraction.
+### LanguageExtractor
+**Purpose:** Interface for language-specific code extraction. Each supported language implements this interface.
+
+**Properties:**
+- languageId: string - Language identifier (e.g., "javascript-typescript", "python")
+- extensions: string[] - File extensions handled by this extractor
 
 **Methods:**
 - extractCodeUnits(content: string, filePath: string): CodeUnitDeclaration[]
 - extractDependencies(content: string, filePath: string): FileDependencyInfo[]
 - getPatternRules(): PatternRuleSet
-- languageId: string
-- extensions: string[]
+- getComplexityPatterns(): LanguageComplexityPatterns
+- getSkipDirectories(): string[]
+- isTestFile(filePath: string): boolean
 
 ### CodeUnitDeclaration
 **Purpose:** Raw extraction result before storage.
@@ -206,6 +233,8 @@ OPTIONS
 - signature: string?
 - isAsync: boolean
 - isExported: boolean
+- children: CodeUnitDeclaration[]? - Nested declarations (methods inside classes)
+- body: string? - Extracted source text of the code block
 
 ### FileDependencyInfo
 **Purpose:** Raw dependency extraction result.
@@ -214,6 +243,44 @@ OPTIONS
 - targetFile: string
 - importType: ImportType
 - importedNames: string[]
+
+### DetectedPattern
+**Purpose:** A pattern detected during code analysis.
+
+**Properties:**
+- patternType: PatternType
+- patternValue: string
+- lineNumber: number?
+- columnAccess: { read: string[]; write: string[] }?
+
+### PatternRule
+**Purpose:** A single regex-based pattern matching rule.
+
+**Properties:**
+- pattern: RegExp
+- patternType: PatternType
+- value: string? - Static pattern value
+- extractValue: (match: RegExpMatchArray) => string? - Dynamic value extractor
+
+### PatternRuleSet
+**Purpose:** Complete set of pattern rules for a language.
+
+**Properties:**
+- apiEndpoints: PatternRule[]
+- apiCalls: PatternRule[]
+- databaseReads: PatternRule[]
+- databaseWrites: PatternRule[]
+- externalServices: PatternRule[]
+- envVariables: PatternRule[]
+
+### LanguageComplexityPatterns
+**Purpose:** Language-specific regex patterns for complexity calculation.
+
+**Properties:**
+- conditionals: RegExp[]
+- loops: RegExp[]
+- errorHandling: RegExp[]
+- asyncPatterns: RegExp[]
 
 ---
 

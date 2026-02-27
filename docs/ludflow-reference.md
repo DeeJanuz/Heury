@@ -204,7 +204,7 @@ Vector search complements keyword search by finding semantically similar code:
 | Ludflow | Heury |
 |---------|-------|
 | PostgreSQL + Prisma ORM | SQLite (embedded, no server) |
-| pgvector for embeddings | hnswlib or sqlite-vss (local) |
+| pgvector for embeddings | In-memory cosine similarity (upgradeable to hnswlib or sqlite-vss) |
 | Multi-tenant (organization scoping) | Single-user, local-first |
 | Vercel serverless deployment | CLI tool, runs locally |
 | Inngest for background jobs | Direct execution (no job queue needed) |

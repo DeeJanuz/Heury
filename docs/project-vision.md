@@ -62,7 +62,7 @@ For complex questions, the LLM queries the MCP server for specific code units, p
 ### Storage
 
 - **SQLite** via `better-sqlite3`: single file, zero config, portable
-- **Vector search**: `sqlite-vss` within the same SQLite database, behind a pluggable abstraction
+- **Vector search**: In-memory cosine similarity (pure JS, no native deps), behind a pluggable abstraction (can be upgraded to sqlite-vss or hnswlib)
 - Everything lives in a single `.heury/analysis.db` file alongside the manifest files
 
 ### Embeddings
@@ -71,9 +71,11 @@ Pluggable provider interface with sensible defaults:
 
 | Provider | Model | Size | Dimensions | Connectivity |
 |----------|-------|------|------------|-------------|
-| **Local (default)** | all-MiniLM-L6-v2 via ONNX Runtime | ~22MB | 384 | Fully offline |
+| **Local (default)** | Hash-based deterministic vectors (placeholder) | Zero deps | 384 | Fully offline |
 | OpenAI | text-embedding-3-small | API-based | Configurable | Requires API key |
 | Custom | Any provider via interface | Varies | Varies | Varies |
+
+**Note:** The local provider currently uses SHA-256 hash expansion to produce deterministic vectors. This enables development and testing of the full embedding pipeline without native dependencies. A future upgrade to all-MiniLM-L6-v2 via ONNX Runtime will provide real semantic similarity.
 
 ### Output: The `.heury/` Directory
 
@@ -195,33 +197,23 @@ Configuration lives in `heury.config.json` at the project root.
 
 ```jsonc
 {
-  // File inclusion/exclusion
-  "include": ["src/**", "lib/**"],
-  "exclude": ["node_modules/**", "dist/**", "*.test.*"],
+  // Root directory of the codebase to analyze
+  "rootDir": ".",
 
-  // Language extractors to enable
-  "languages": ["typescript", "python", "go"],
+  // Output directory for analysis artifacts
+  "outputDir": ".heury",
 
-  // Embedding provider
+  // File inclusion patterns (glob)
+  "include": ["**/*"],
+
+  // File exclusion patterns (glob)
+  "exclude": ["node_modules/**", "dist/**", "build/**", ".git/**", "coverage/**"],
+
+  // Embedding provider configuration
   "embedding": {
     "provider": "local",       // "local" (default) or "openai"
-    "apiKey": ""               // For API providers
-  },
-
-  // MCP server configuration
-  "mcp": {
-    "transport": "stdio",      // "stdio" (default) or "http"
-    "port": 3111               // HTTP port when using http transport
-  },
-
-  // Output control
-  "output": {
-    "tokenBudget": 5000        // Target token count for manifest files
-  },
-
-  // Analysis behavior
-  "analysis": {
-    "incremental": true        // Enable/disable incremental analysis
+    "model": "",               // Optional model override
+    "apiKey": ""               // Required for "openai" provider
   }
 }
 ```
@@ -260,8 +252,8 @@ npx heury init
 | Runtime | Node.js 20+ |
 | Language | TypeScript (strict mode) |
 | Database | SQLite via better-sqlite3 |
-| Vector Search | sqlite-vss |
-| Embeddings (local) | ONNX Runtime (all-MiniLM-L6-v2) |
+| Vector Search | In-memory cosine similarity (pure JS); upgradeable to sqlite-vss or hnswlib |
+| Embeddings (local) | Hash-based deterministic vectors (placeholder); upgradeable to ONNX Runtime |
 | MCP SDK | @modelcontextprotocol/sdk |
 | Testing | Vitest |
 | Build | tsup or similar bundler |
