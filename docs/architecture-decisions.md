@@ -259,9 +259,9 @@ Additionally, LLM-generated function summaries can provide human-readable descri
 #### Decision
 Add a Deep Structural Analysis phase (Path C) as a post-processing step after the main analysis pipeline:
 - **5 new heuristic extractors:** call graph, type fields, event flows, schema models, guards
-- **5 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary
-- **6 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, ILlmProvider
-- **4 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context
+- **6 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary, RepositoryGuardClause
+- **7 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, IGuardClauseRepository, ILlmProvider
+- **7 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context, get-patterns-by-type, get-unit-summaries, get-function-guards
 - **Enhanced manifests:** MODULES.md includes type fields, PATTERNS.md includes event flows, HOTSPOTS.md includes fan-out analysis, new SCHEMA.md for data models
 - **Optional BYOK LLM enrichment:** Anthropic, OpenAI, or Gemini for AI-generated function summaries
 
@@ -294,7 +294,7 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 - Event flow tracking makes event-driven architectures transparent
 
 **Negative:**
-- 6 new database tables (migration 002-deep-analysis.sql)
+- 7 new database tables (migrations 002-deep-analysis.sql, 003-enhancements.sql)
 - Deep analysis adds processing time proportional to codebase size
 - Call graph resolution is heuristic (name-based, not fully resolved)
 
@@ -331,3 +331,4 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 | 2026-02-27 | ADR-004 | Updated: Reflect in-memory vector search implementation | System |
 | 2026-02-28 | ADR-005 | Initial: Deep Structural Analysis via heuristic extractors | System |
 | 2026-02-28 | ADR-005 | Updated: Token budget note (5K -> 10K, configurable) | System |
+| 2026-02-28 | ADR-005 | Updated: Guard clause persistence (migration 003), 3 new MCP tools (get-patterns-by-type, get-unit-summaries, get-function-guards) | System |

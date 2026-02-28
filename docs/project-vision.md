@@ -162,6 +162,7 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | `get_dependencies` | Query import/export relationships |
 | `get_api_endpoints` | List discovered API endpoints with routes and methods |
 | `get_env_variables` | List environment variables detected in .env.example files |
+| `get-patterns-by-type` | Query code unit patterns by type (DATABASE_READ, API_ENDPOINT, etc.) with optional file path filter |
 
 ### File Access Tools
 
@@ -177,6 +178,8 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | `get-event-flow` | Query event emissions and subscriptions by event name, direction, or framework |
 | `get-data-models` | List schema/data models with their fields, types, constraints, and relations |
 | `get-function-context` | Complete aggregated context for a function: signature, calls, callers, events, types, summary |
+| `get-unit-summaries` | LLM-generated summaries for code units with key behaviors and side effects |
+| `get-function-guards` | Query guard clauses in functions by unit ID, file path, or guard type |
 
 ### Semantic Search Tools
 

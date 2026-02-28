@@ -395,6 +395,28 @@ OPTIONS
 
 ---
 
+### RepositoryGuardClause
+**Purpose:** Records guard clauses (early returns, null checks, auth checks, validation) detected within function bodies. Previously extracted but discarded; now persisted for MCP tool queries.
+
+**Properties:**
+- id: string - Primary key
+- codeUnitId: string - Foreign key to CodeUnit
+- guardType: string - Type of guard (e.g., "null_check", "type_check", "validation")
+- condition: string - The guard condition expression or error type
+- lineNumber: number - Line where the guard clause occurs
+
+**Indexes:**
+- codeUnitId (for "what guards does this function have?")
+- guardType (for "find all guards of this type")
+
+**Validation:**
+- codeUnitId must not be empty
+- guardType must not be empty
+- condition must not be empty
+- lineNumber must be >= 1
+
+---
+
 ## Deep Structural Ports (Repository Interfaces)
 
 ### IFunctionCallRepository
@@ -448,6 +470,16 @@ OPTIONS
 - deleteByCodeUnitId(codeUnitId: string): void
 - clear(): void
 
+### IGuardClauseRepository
+**Methods:**
+- save(guard: RepositoryGuardClause): void
+- saveBatch(guards: RepositoryGuardClause[]): void
+- findByCodeUnitId(codeUnitId: string): RepositoryGuardClause[]
+- findByGuardType(guardType: string): RepositoryGuardClause[]
+- findAll(): RepositoryGuardClause[]
+- deleteByCodeUnitId(codeUnitId: string): void
+- clear(): void
+
 ### ILlmProvider
 **Purpose:** Port for BYOK LLM providers used by the enrichment pipeline to generate code unit summaries.
 
@@ -481,5 +513,6 @@ CodeUnit (0..1) ----< (many) FunctionCall (as callee, via calleeUnitId)
 CodeUnit (1) ----< (many) TypeField (via parentUnitId)
 CodeUnit (1) ----< (many) EventFlow (via codeUnitId)
 CodeUnit (1) ---- (0..1) UnitSummary (via codeUnitId, unique)
+CodeUnit (1) ----< (many) RepositoryGuardClause (via codeUnitId)
 SchemaModel (1) ----< (many) SchemaModelField (via modelId)
 ```
