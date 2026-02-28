@@ -1,41 +1,44 @@
 import type { IFileDependencyRepository } from '@/domain/ports/index.js';
-import { truncateToTokenBudget } from './token-budgeter.js';
+import { fitSections, type Section } from './token-budgeter.js';
 
 /**
  * Generate DEPENDENCIES.md - file dependency graph.
- * Shows hub files (most imported) first, then full dependency graph.
+ * Uses section-based inclusion: hub files get highest priority,
+ * source files scored by import count (orchestrators rank higher).
  */
 export function generateDependenciesManifest(
   dependencyRepo: IFileDependencyRepository,
   maxTokens: number,
 ): string {
   const allDeps = dependencyRepo.findAll();
-  const lines: string[] = ['# Dependencies', ''];
 
   if (allDeps.length === 0) {
-    return truncateToTokenBudget(lines.join('\n'), maxTokens);
+    return fitSections('# Dependencies\n', [], maxTokens);
   }
 
-  // Calculate import counts per target file
+  const sections: Section[] = [];
+
+  // Calculate import counts per target file (for hub files)
   const importCounts = new Map<string, number>();
   for (const dep of allDeps) {
     importCounts.set(dep.targetFile, (importCounts.get(dep.targetFile) ?? 0) + 1);
   }
 
-  // Hub files: sorted by import count descending
+  // Hub files section: scored high so it's always included first
   const hubFiles = [...importCounts.entries()]
     .sort((a, b) => b[1] - a[1])
     .filter(([, count]) => count >= 2);
 
   if (hubFiles.length > 0) {
-    lines.push('## Hub Files (most imported)');
+    const hubLines: string[] = ['## Hub Files (most imported)'];
     for (const [file, count] of hubFiles) {
-      lines.push(`- ${file} (imported by ${count} files)`);
+      hubLines.push(`- ${file} (imported by ${count} files)`);
     }
-    lines.push('');
+    hubLines.push('');
+    sections.push({ content: hubLines.join('\n') + '\n', score: 100 });
   }
 
-  // Dependency graph: group by source file, sorted alphabetically
+  // Build per-source-file sections, scored by number of imports
   const sourceFiles = new Map<string, string[]>();
   for (const dep of allDeps) {
     const targets = sourceFiles.get(dep.sourceFile) ?? [];
@@ -43,17 +46,14 @@ export function generateDependenciesManifest(
     sourceFiles.set(dep.sourceFile, targets);
   }
 
-  const sortedSources = [...sourceFiles.keys()].sort();
-
-  lines.push('## Dependency Graph');
-  for (const source of sortedSources) {
-    lines.push(source);
-    const targets = sourceFiles.get(source)!;
+  for (const [source, targets] of sourceFiles) {
+    const lines: string[] = [source];
     for (const target of targets.sort()) {
-      lines.push(`  \u2192 ${target}`);
+      lines.push(`  → ${target}`);
     }
     lines.push('');
+    sections.push({ content: lines.join('\n') + '\n', score: targets.length });
   }
 
-  return truncateToTokenBudget(lines.join('\n'), maxTokens);
+  return fitSections('# Dependencies\n', sections, maxTokens);
 }

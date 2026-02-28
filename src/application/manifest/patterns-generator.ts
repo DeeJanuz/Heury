@@ -1,7 +1,7 @@
 import type { ICodeUnitRepository, IEnvVariableRepository } from '@/domain/ports/index.js';
 import type { CodeUnit, CodeUnitPattern } from '@/domain/models/index.js';
 import { PatternType } from '@/domain/models/index.js';
-import { truncateToTokenBudget } from './token-budgeter.js';
+import { fitSections, type Section } from './token-budgeter.js';
 
 interface PatternEntry {
   readonly patternValue: string;
@@ -21,23 +21,24 @@ export function generatePatternsManifest(
   const patternsByType = groupPatternsByType(allUnits);
   const envVars = envVarRepo.findAll();
 
-  const lines: string[] = ['# Patterns', ''];
+  const sections: Section[] = [];
 
   // API Endpoints
   const apiEndpoints = patternsByType.get(PatternType.API_ENDPOINT);
   if (apiEndpoints && apiEndpoints.length > 0) {
-    lines.push('## API Endpoints');
+    const lines: string[] = ['## API Endpoints'];
     for (const entry of apiEndpoints) {
       lines.push(`- ${entry.patternValue} - ${entry.filePath}:${entry.functionName}`);
     }
     lines.push('');
+    sections.push({ content: lines.join('\n'), score: apiEndpoints.length });
   }
 
   // Database Operations
   const dbReads = patternsByType.get(PatternType.DATABASE_READ) ?? [];
   const dbWrites = patternsByType.get(PatternType.DATABASE_WRITE) ?? [];
   if (dbReads.length > 0 || dbWrites.length > 0) {
-    lines.push('## Database Operations');
+    const lines: string[] = ['## Database Operations'];
     if (dbReads.length > 0) {
       lines.push('### Reads');
       for (const entry of dbReads) {
@@ -55,39 +56,43 @@ export function generatePatternsManifest(
       }
     }
     lines.push('');
+    sections.push({ content: lines.join('\n'), score: dbReads.length + dbWrites.length });
   }
 
   // External Services
   const externalServices = patternsByType.get(PatternType.EXTERNAL_SERVICE);
   if (externalServices && externalServices.length > 0) {
-    lines.push('## External Services');
+    const lines: string[] = ['## External Services'];
     for (const entry of externalServices) {
       lines.push(`- ${entry.patternValue} - ${entry.filePath}:${entry.functionName}`);
     }
     lines.push('');
+    sections.push({ content: lines.join('\n'), score: externalServices.length });
   }
 
   // API Calls
   const apiCalls = patternsByType.get(PatternType.API_CALL);
   if (apiCalls && apiCalls.length > 0) {
-    lines.push('## API Calls');
+    const lines: string[] = ['## API Calls'];
     for (const entry of apiCalls) {
       lines.push(`- ${entry.patternValue} - ${entry.filePath}:${entry.functionName}`);
     }
     lines.push('');
+    sections.push({ content: lines.join('\n'), score: apiCalls.length });
   }
 
-  // Environment Variables (from env var repository)
+  // Environment Variables
   if (envVars.length > 0) {
-    lines.push('## Environment Variables');
+    const lines: string[] = ['## Environment Variables'];
     for (const envVar of envVars) {
       const desc = envVar.description ? ` - ${envVar.description}` : '';
       lines.push(`- ${envVar.name}${desc}`);
     }
     lines.push('');
+    sections.push({ content: lines.join('\n'), score: envVars.length });
   }
 
-  return truncateToTokenBudget(lines.join('\n'), maxTokens);
+  return fitSections('# Patterns\n\n', sections, maxTokens);
 }
 
 function groupPatternsByType(units: CodeUnit[]): Map<PatternType, PatternEntry[]> {

@@ -69,7 +69,6 @@ describe('generateDependenciesManifest', () => {
 
     const result = generateDependenciesManifest(repo, 5000);
 
-    expect(result).toContain('Dependency Graph');
     expect(result).toContain('src/routes/users.ts');
     expect(result).toMatch(/→.*src\/services\/user\.ts/);
     expect(result).toMatch(/→.*src\/db\/prisma\.ts/);
@@ -96,15 +95,15 @@ describe('generateDependenciesManifest', () => {
     expect(result.length).toBeLessThan(300);
   });
 
-  it('should sort source files alphabetically in dependency graph', () => {
+  it('should include hub files section before source file sections (high score)', () => {
     repo.saveBatch([
       createFileDependency({
-        sourceFile: 'src/z-module.ts',
+        sourceFile: 'src/a.ts',
         targetFile: 'src/shared.ts',
         importType: ImportType.NAMED,
       }),
       createFileDependency({
-        sourceFile: 'src/a-module.ts',
+        sourceFile: 'src/b.ts',
         targetFile: 'src/shared.ts',
         importType: ImportType.NAMED,
       }),
@@ -112,8 +111,97 @@ describe('generateDependenciesManifest', () => {
 
     const result = generateDependenciesManifest(repo, 5000);
 
-    expect(result.indexOf('src/a-module.ts')).toBeLessThan(
-      result.indexOf('src/z-module.ts'),
+    const hubIndex = result.indexOf('## Hub Files');
+    const aIndex = result.indexOf('src/a.ts');
+    // Hub section must appear before any source file dependency listing
+    expect(hubIndex).toBeGreaterThan(-1);
+    expect(hubIndex).toBeLessThan(aIndex);
+  });
+
+  it('should rank source files with more imports higher', () => {
+    // orchestrator imports 3 things, simple imports 1 thing
+    repo.saveBatch([
+      createFileDependency({
+        sourceFile: 'src/simple.ts',
+        targetFile: 'src/dep-a.ts',
+        importType: ImportType.NAMED,
+      }),
+      createFileDependency({
+        sourceFile: 'src/orchestrator.ts',
+        targetFile: 'src/dep-a.ts',
+        importType: ImportType.NAMED,
+      }),
+      createFileDependency({
+        sourceFile: 'src/orchestrator.ts',
+        targetFile: 'src/dep-b.ts',
+        importType: ImportType.NAMED,
+      }),
+      createFileDependency({
+        sourceFile: 'src/orchestrator.ts',
+        targetFile: 'src/dep-c.ts',
+        importType: ImportType.NAMED,
+      }),
+    ]);
+
+    const result = generateDependenciesManifest(repo, 5000);
+
+    // orchestrator (3 imports) should appear before simple (1 import) in output
+    expect(result.indexOf('src/orchestrator.ts')).toBeLessThan(
+      result.indexOf('src/simple.ts'),
     );
+  });
+
+  it('should not produce partial sections — each source file listing is complete or omitted', () => {
+    // Create a source file with multiple targets
+    repo.saveBatch([
+      createFileDependency({
+        sourceFile: 'src/big-file.ts',
+        targetFile: 'src/target-1.ts',
+        importType: ImportType.NAMED,
+      }),
+      createFileDependency({
+        sourceFile: 'src/big-file.ts',
+        targetFile: 'src/target-2.ts',
+        importType: ImportType.NAMED,
+      }),
+      createFileDependency({
+        sourceFile: 'src/big-file.ts',
+        targetFile: 'src/target-3.ts',
+        importType: ImportType.NAMED,
+      }),
+    ]);
+
+    const result = generateDependenciesManifest(repo, 5000);
+
+    // If big-file.ts appears, all its targets must appear too
+    if (result.includes('src/big-file.ts')) {
+      expect(result).toContain('src/target-1.ts');
+      expect(result).toContain('src/target-2.ts');
+      expect(result).toContain('src/target-3.ts');
+    }
+  });
+
+  it('should show omission summary when sections do not fit', () => {
+    // Create many source files to exceed a small token budget
+    for (let i = 0; i < 30; i++) {
+      repo.save(
+        createFileDependency({
+          sourceFile: `src/modules/module-${i}.ts`,
+          targetFile: `src/shared/shared-${i}.ts`,
+          importType: ImportType.NAMED,
+        }),
+      );
+    }
+
+    // Very tight budget — can't fit all 30 source file sections
+    const result = generateDependenciesManifest(repo, 30);
+
+    expect(result).toMatch(/\d+ more files available via MCP tools/);
+  });
+
+  it('should return just the header for empty dependencies', () => {
+    const result = generateDependenciesManifest(repo, 5000);
+
+    expect(result).toBe('# Dependencies\n');
   });
 });

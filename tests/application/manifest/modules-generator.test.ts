@@ -1,19 +1,25 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { generateModulesManifest } from '@/application/manifest/modules-generator.js';
-import { InMemoryCodeUnitRepository } from '../../helpers/fakes/index.js';
+import {
+  InMemoryCodeUnitRepository,
+  InMemoryFileDependencyRepository,
+} from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
+  createFileDependency,
   CodeUnitType,
   PatternType,
 } from '@/domain/models/index.js';
 
 describe('generateModulesManifest', () => {
   let repo: InMemoryCodeUnitRepository;
+  let depRepo: InMemoryFileDependencyRepository;
 
   beforeEach(() => {
     repo = new InMemoryCodeUnitRepository();
+    depRepo = new InMemoryFileDependencyRepository();
   });
 
   it('should generate markdown with file groupings', () => {
@@ -44,13 +50,11 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('# Modules');
     expect(result).toContain('## src/auth/login.ts');
     expect(result).toContain('## src/users/service.ts');
-    // auth should come before users (alphabetical)
-    expect(result.indexOf('src/auth')).toBeLessThan(result.indexOf('src/users'));
   });
 
   it('should list code units with type and complexity', () => {
@@ -81,7 +85,7 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('formatDate');
     expect(result).toContain('function');
@@ -120,7 +124,7 @@ describe('generateModulesManifest', () => {
     repo.save(classUnit);
     repo.save(methodUnit);
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('`UserService` - class');
     expect(result).toContain('`getUser`');
@@ -151,14 +155,14 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('`UserID` - type');
     expect(result).toContain('string | number');
   });
 
   it('should handle empty repository', () => {
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('# Modules');
     expect(result.split('\n').filter((l) => l.trim()).length).toBeLessThanOrEqual(2);
@@ -191,7 +195,7 @@ describe('generateModulesManifest', () => {
     });
     repo.save(unit);
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('API_ENDPOINT');
     expect(result).toContain('DATABASE_READ');
@@ -213,7 +217,7 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain(
       '`fetchUser` - async function(userId: string): Promise<User>, complexity: 5',
@@ -236,7 +240,7 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('`internalHelper` - function, complexity: 2');
     expect(result).not.toContain('(x: number): number');
@@ -257,7 +261,7 @@ describe('generateModulesManifest', () => {
       }),
     );
 
-    const result = generateModulesManifest(repo, 5000);
+    const result = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result).toContain('`AppConfig` - class');
     expect(result).not.toContain('undefined');
@@ -281,8 +285,193 @@ describe('generateModulesManifest', () => {
       );
     }
 
-    const result = generateModulesManifest(repo, 50); // very small budget
+    const result = generateModulesManifest(repo, depRepo, 50); // very small budget
     // Result should be truncated
     expect(result.length).toBeLessThan(300); // 50 tokens * ~4 chars + some buffer
+  });
+
+  it('should order files by relevance score, not alphabetically', () => {
+    // File z-low.ts: 1 export, 0 patterns => score = 3
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/z-low.ts',
+        name: 'lowFunc',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 5,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 1,
+      }),
+    );
+
+    // File a-high.ts: 4 exports + 2 patterns => score = 4*3 + 2*2 = 16
+    for (let i = 0; i < 4; i++) {
+      repo.save(
+        createCodeUnit({
+          id: `high-${i}`,
+          filePath: 'src/a-high.ts',
+          name: `highFunc${i}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: i * 10 + 1,
+          lineEnd: i * 10 + 9,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 1,
+          patterns:
+            i < 2
+              ? [
+                  createCodeUnitPattern({
+                    codeUnitId: `high-${i}`,
+                    patternType: PatternType.API_ENDPOINT,
+                    patternValue: `GET /api/${i}`,
+                  }),
+                ]
+              : [],
+        }),
+      );
+    }
+
+    const result = generateModulesManifest(repo, depRepo, 5000);
+
+    // a-high.ts (score 16) should appear before z-low.ts (score 3)
+    // despite z-low coming first alphabetically
+    expect(result.indexOf('a-high.ts')).toBeLessThan(result.indexOf('z-low.ts'));
+  });
+
+  it('should score fan-in dependencies', () => {
+    // File with many importers (high fan-in) should rank higher
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/shared/utils.ts',
+        name: 'helper',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 5,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 1,
+      }),
+    );
+
+    // File with no importers
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/a-leaf.ts',
+        name: 'leafFunc',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 5,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 1,
+      }),
+    );
+
+    // 5 files import shared/utils.ts => +5 fan-in
+    for (let i = 0; i < 5; i++) {
+      depRepo.save(
+        createFileDependency({
+          sourceFile: `src/consumer-${i}.ts`,
+          targetFile: 'src/shared/utils.ts',
+        }),
+      );
+    }
+
+    const result = generateModulesManifest(repo, depRepo, 5000);
+
+    // shared/utils.ts (score: 3 export + 5 fan-in = 8) should appear
+    // before a-leaf.ts (score: 3 export + 0 fan-in = 3)
+    expect(result.indexOf('shared/utils.ts')).toBeLessThan(result.indexOf('a-leaf.ts'));
+  });
+
+  it('should score complexity >= 15', () => {
+    // File with high complexity unit
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/z-complex.ts',
+        name: 'complexFunc',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 100,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 20,
+      }),
+    );
+
+    // File with low complexity
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/a-simple.ts',
+        name: 'simpleFunc',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 5,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 2,
+      }),
+    );
+
+    const result = generateModulesManifest(repo, depRepo, 5000);
+
+    // z-complex.ts (score: 3 export + 1 complexity = 4) should appear
+    // before a-simple.ts (score: 3 export + 0 complexity = 3)
+    expect(result.indexOf('z-complex.ts')).toBeLessThan(result.indexOf('a-simple.ts'));
+  });
+
+  it('should show omission summary when budget is small', () => {
+    for (let i = 0; i < 10; i++) {
+      repo.save(
+        createCodeUnit({
+          filePath: `src/mod-${i}.ts`,
+          name: `fn${i}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 1,
+        }),
+      );
+    }
+
+    // Budget small enough that not all 10 files fit
+    const result = generateModulesManifest(repo, depRepo, 30);
+
+    expect(result).toContain('more files available via MCP tools');
+  });
+
+  it('should maintain stable ordering for files with equal scores', () => {
+    // Create files with identical scores - order should be stable (deterministic)
+    const files = ['src/b-file.ts', 'src/a-file.ts', 'src/c-file.ts'];
+    for (const filePath of files) {
+      repo.save(
+        createCodeUnit({
+          filePath,
+          name: `func_${filePath}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 5,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 1,
+        }),
+      );
+    }
+
+    const result1 = generateModulesManifest(repo, depRepo, 5000);
+    const result2 = generateModulesManifest(repo, depRepo, 5000);
+
+    expect(result1).toBe(result2);
   });
 });

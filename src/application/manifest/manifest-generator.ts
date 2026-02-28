@@ -38,7 +38,7 @@ export async function generateManifests(
   // Ensure output directory exists
   await deps.fileSystem.mkdir(outputDir);
 
-  const modules = generateModulesManifest(deps.codeUnitRepo, budget.modules);
+  const modules = generateModulesManifest(deps.codeUnitRepo, deps.dependencyRepo, budget.modules);
   const patterns = generatePatternsManifest(
     deps.codeUnitRepo,
     deps.envVarRepo,

@@ -41,7 +41,7 @@ export function createMcpServer(deps: McpServerDependencies): Server {
       instructions: `Heury: local codebase analysis for LLM discovery.
 
 Optimized hybrid workflow:
-1. ORIENT: Read .heury/MODULES.md, PATTERNS.md, DEPENDENCIES.md, HOTSPOTS.md (~5K tokens total) for instant codebase understanding. MODULES.md includes function signatures for exported units.
+1. ORIENT: Read .heury/MODULES.md, PATTERNS.md, DEPENDENCIES.md, HOTSPOTS.md (~5K tokens total) for instant codebase understanding. Manifests are relevance-ranked — most important files and sections appear first. Omitted items are available via MCP tools.
 2. TARGET: Use get_code_units (is_exported: true) or search_codebase to find specific functions/classes. Compact format includes signatures — often enough to understand contracts without reading source.
 3. READ: Use get_file_content only when you need implementation details beyond the signature
 4. VERIFY: Use get_dependencies to understand import relationships
@@ -56,7 +56,7 @@ Quick reference:
 - get_file_content: Read source files with optional line ranges
 - vector_search: Semantic similarity search across code units
 
-Token tips: Start with manifests (free orientation). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
+Token tips: Start with manifests (free orientation, relevance-ranked). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
   );
 

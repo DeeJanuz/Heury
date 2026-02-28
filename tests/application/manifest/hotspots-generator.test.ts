@@ -191,6 +191,193 @@ describe('generateHotspotsManifest', () => {
     const result = generateHotspotsManifest(repo, 5000);
 
     expect(result).toContain('# Hotspots');
+    // Should not contain any subsection headers
+    expect(result).not.toContain('##');
+  });
+
+  it('should order sections by priority: complex functions first, then critical paths, then file counts', () => {
+    // Add a unit with high complexity AND 3+ patterns so all 3 sections appear
+    repo.save(
+      createCodeUnit({
+        id: 'unit-multi',
+        filePath: 'src/core/engine.ts',
+        name: 'runEngine',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 100,
+        isAsync: true,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 40,
+        patterns: [
+          createCodeUnitPattern({
+            codeUnitId: 'unit-multi',
+            patternType: PatternType.API_ENDPOINT,
+            patternValue: 'POST /api/run',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-multi',
+            patternType: PatternType.DATABASE_WRITE,
+            patternValue: 'db.write',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-multi',
+            patternType: PatternType.EXTERNAL_SERVICE,
+            patternValue: 'ext.call',
+          }),
+        ],
+      }),
+    );
+
+    const result = generateHotspotsManifest(repo, 5000);
+
+    const complexIdx = result.indexOf('## Most Complex Functions');
+    const criticalIdx = result.indexOf('## Critical Paths');
+    const filesIdx = result.indexOf('## Files with Most Code Units');
+
+    expect(complexIdx).toBeGreaterThan(-1);
+    expect(criticalIdx).toBeGreaterThan(-1);
+    expect(filesIdx).toBeGreaterThan(-1);
+    expect(complexIdx).toBeLessThan(criticalIdx);
+    expect(criticalIdx).toBeLessThan(filesIdx);
+  });
+
+  it('should include only highest-priority sections when budget is tiny', () => {
+    // Create data for all 3 sections
+    repo.save(
+      createCodeUnit({
+        id: 'unit-tight',
+        filePath: 'src/core/engine.ts',
+        name: 'runEngine',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 100,
+        isAsync: true,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 40,
+        patterns: [
+          createCodeUnitPattern({
+            codeUnitId: 'unit-tight',
+            patternType: PatternType.API_ENDPOINT,
+            patternValue: 'POST /api/run',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-tight',
+            patternType: PatternType.DATABASE_WRITE,
+            patternValue: 'db.write',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-tight',
+            patternType: PatternType.EXTERNAL_SERVICE,
+            patternValue: 'ext.call',
+          }),
+        ],
+      }),
+    );
+
+    // Use a budget that fits header + complex functions but not all sections
+    // Header "# Hotspots\n" is ~3 tokens. Complex section is small too.
+    // We need enough for header + 1 section but not all 3.
+    const result = generateHotspotsManifest(repo, 50);
+
+    expect(result).toContain('# Hotspots');
+    // Should contain the highest-priority section (complex functions, score=3)
+    expect(result).toContain('## Most Complex Functions');
+    // Lower-priority sections should be omitted
+    // At least one section must be missing
+    const hasCritical = result.includes('## Critical Paths');
+    const hasFiles = result.includes('## Files with Most Code Units');
+    expect(hasCritical && hasFiles).toBe(false);
+  });
+
+  it('should not include partial sections', () => {
+    // fitSections includes whole sections or omits them entirely
+    for (let i = 0; i < 20; i++) {
+      repo.save(
+        createCodeUnit({
+          filePath: `src/modules/mod-${i}.ts`,
+          name: `func${i}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 50,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 50 - i,
+        }),
+      );
+    }
+
+    const result = generateHotspotsManifest(repo, 50);
+
+    // If "Most Complex Functions" heading appears, all its entries must be present
+    if (result.includes('## Most Complex Functions')) {
+      // The section should have all 10 entries (MAX_COMPLEX_FUNCTIONS)
+      const sectionStart = result.indexOf('## Most Complex Functions');
+      const nextSection = result.indexOf('\n##', sectionStart + 1);
+      const sectionContent =
+        nextSection > -1
+          ? result.slice(sectionStart, nextSection)
+          : result.slice(sectionStart);
+      const entryCount = (sectionContent.match(/^\d+\./gm) ?? []).length;
+      expect(entryCount).toBe(10);
+    }
+
+    // If "Files with Most Code Units" heading appears, it should have entries
+    if (result.includes('## Files with Most Code Units')) {
+      const sectionStart = result.indexOf('## Files with Most Code Units');
+      const sectionContent = result.slice(sectionStart);
+      expect(sectionContent).toContain('units)');
+    }
+  });
+
+  it('should show omission summary when sections are cut', () => {
+    // Create data for all 3 sections
+    repo.save(
+      createCodeUnit({
+        id: 'unit-omit',
+        filePath: 'src/core/engine.ts',
+        name: 'runEngine',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 100,
+        isAsync: true,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 40,
+        patterns: [
+          createCodeUnitPattern({
+            codeUnitId: 'unit-omit',
+            patternType: PatternType.API_ENDPOINT,
+            patternValue: 'POST /api/run',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-omit',
+            patternType: PatternType.DATABASE_WRITE,
+            patternValue: 'db.write',
+          }),
+          createCodeUnitPattern({
+            codeUnitId: 'unit-omit',
+            patternType: PatternType.EXTERNAL_SERVICE,
+            patternValue: 'ext.call',
+          }),
+        ],
+      }),
+    );
+
+    // Tiny budget so some sections get omitted
+    const result = generateHotspotsManifest(repo, 50);
+
+    // If any sections were omitted, we should see the omission summary
+    const allSectionsPresent =
+      result.includes('## Most Complex Functions') &&
+      result.includes('## Critical Paths') &&
+      result.includes('## Files with Most Code Units');
+
+    if (!allSectionsPresent) {
+      expect(result).toContain('more files available via MCP tools');
+    }
   });
 
   it('should respect token budget', () => {
