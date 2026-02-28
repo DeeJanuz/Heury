@@ -4,6 +4,7 @@ import { Command } from 'commander';
 import { initCommand } from './commands/init.js';
 import { analyzeCommand } from './commands/analyze.js';
 import { serveCommand } from './commands/serve.js';
+import { hookInstallCommand, hookRemoveCommand } from './commands/hook.js';
 
 const program = new Command();
 
@@ -23,9 +24,26 @@ program
   .description('Analyze the codebase')
   .option('-d, --dir <directory>', 'Project directory', '.')
   .option('--full', 'Force full re-analysis', false)
+  .option('--incremental', 'Only analyze files changed in the last commit')
   .option('--enrich', 'Enrich code units with LLM summaries', false)
   .option('--enrich-force', 'Re-enrich all units even if summaries exist', false)
   .action((options) => analyzeCommand(options));
+
+const hook = program
+  .command('hook')
+  .description('Manage git hooks');
+
+hook
+  .command('install')
+  .description('Install post-commit hook for incremental analysis')
+  .option('-d, --dir <directory>', 'Project root directory', '.')
+  .action((options) => hookInstallCommand(options));
+
+hook
+  .command('remove')
+  .description('Remove post-commit hook')
+  .option('-d, --dir <directory>', 'Project root directory', '.')
+  .action((options) => hookRemoveCommand(options));
 
 program
   .command('serve')

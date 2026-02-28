@@ -4,7 +4,10 @@
 
 import type { IFileSystem } from '@/domain/ports/index.js';
 import type { LlmProviderConfig } from '@/domain/ports/llm-provider.js';
-import { AnalysisOrchestrator, generateManifests } from '@/application/index.js';
+import { AnalysisOrchestrator, generateManifests, type AnalysisDependencies } from '@/application/index.js';
+import { analyzeIncremental } from '@/application/incremental/incremental-analyzer.js';
+import { getChangedFilesSinceCommit } from '@/application/incremental/git-diff-parser.js';
+import type { HeuryConfig } from '@/domain/ports/config-provider.js';
 import { enrichCodeUnits } from '@/application/enrichment-processor.js';
 import { loadConfig } from '@/config/loader.js';
 import { createCompositionRoot } from '@/composition-root.js';
@@ -16,6 +19,7 @@ import { DatabaseManager } from '@/adapters/storage/database.js';
 export interface AnalyzeOptions {
   dir: string;
   full: boolean;
+  incremental?: boolean;
   dbPath?: string;
   inMemory?: boolean;
   enrich?: boolean;
@@ -35,6 +39,11 @@ export async function analyzeCommand(
       dbPath,
       inMemory: options.inMemory ?? (fileSystem !== undefined),
     });
+
+    if (options.incremental) {
+      await runIncrementalAnalysis(options, config, dependencies, fs);
+      return;
+    }
 
     const orchestrator = new AnalysisOrchestrator(dependencies);
     const result = await orchestrator.analyze({
@@ -86,6 +95,54 @@ export async function analyzeCommand(
     console.error(
       `Error: ${error instanceof Error ? error.message : String(error)}`,
     );
+  }
+}
+
+async function runIncrementalAnalysis(
+  options: AnalyzeOptions,
+  config: HeuryConfig,
+  dependencies: AnalysisDependencies,
+  fs: IFileSystem,
+): Promise<void> {
+  const changedFiles = await getChangedFilesSinceCommit('HEAD~1', config.rootDir);
+
+  const result = await analyzeIncremental(
+    changedFiles,
+    { rootDir: config.rootDir, include: config.include, exclude: config.exclude },
+    {
+      fileSystem: fs,
+      codeUnitRepo: dependencies.codeUnitRepo,
+      dependencyRepo: dependencies.dependencyRepo,
+      envVarRepo: dependencies.envVarRepo,
+      guardClauseRepo: dependencies.guardClauseRepo,
+      languageRegistry: dependencies.languageRegistry,
+    },
+  );
+
+  if (result.success) {
+    console.log(
+      `Incremental analysis: ${result.filesAdded} added, ${result.filesModified} modified, ${result.filesDeleted} deleted`,
+    );
+
+    await generateManifests(
+      {
+        codeUnitRepo: dependencies.codeUnitRepo,
+        dependencyRepo: dependencies.dependencyRepo,
+        envVarRepo: dependencies.envVarRepo,
+        fileSystem: fs,
+        typeFieldRepo: dependencies.typeFieldRepo,
+        eventFlowRepo: dependencies.eventFlowRepo,
+        schemaModelRepo: dependencies.schemaModelRepo,
+        functionCallRepo: dependencies.functionCallRepo,
+        fileClusterRepo: dependencies.fileClusterRepo,
+      },
+      {
+        outputDir: `${options.dir}/${config.outputDir}`,
+        totalTokenBudget: config.manifestTokenBudget,
+      },
+    );
+  } else {
+    console.error(`Incremental analysis failed: ${result.error ?? 'Unknown error'}`);
   }
 }
 

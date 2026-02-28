@@ -4,12 +4,18 @@ import { analyzeCommand } from '@/cli/commands/analyze.js';
 import { CONFIG_FILENAME } from '@/config/loader.js';
 import { InMemoryFileSystem } from '../../helpers/fakes/index.js';
 
+vi.mock('@/application/incremental/git-diff-parser.js', () => ({
+  parseGitDiff: vi.fn(),
+  getChangedFilesSinceCommit: vi.fn(),
+}));
+
 describe('analyzeCommand', () => {
   let fs: InMemoryFileSystem;
   let consoleSpy: ReturnType<typeof vi.spyOn>;
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     fs = new InMemoryFileSystem();
     consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
     consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -124,5 +130,138 @@ describe('analyzeCommand', () => {
 
     // Should have logged an error
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  describe('incremental mode', () => {
+    it('should run incremental analysis when incremental flag is set', async () => {
+      const { getChangedFilesSinceCommit } = await import(
+        '@/application/incremental/git-diff-parser.js'
+      );
+      const mockGetChanged = vi.mocked(getChangedFilesSinceCommit);
+
+      await fs.writeFile(
+        `/project/${CONFIG_FILENAME}`,
+        JSON.stringify({
+          rootDir: '/project',
+          outputDir: '.heury',
+          include: ['**/*'],
+          exclude: [],
+          embedding: { provider: 'local' },
+        }),
+      );
+      await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
+
+      mockGetChanged.mockResolvedValue([
+        { filePath: 'index.ts', changeType: 'modified' },
+      ]);
+
+      await analyzeCommand(
+        { dir: '/project', full: false, incremental: true },
+        fs,
+      );
+
+      expect(mockGetChanged).toHaveBeenCalledWith('HEAD~1', '/project');
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Incremental analysis'),
+      );
+    });
+
+    it('should print incremental stats with added, modified, deleted counts', async () => {
+      const { getChangedFilesSinceCommit } = await import(
+        '@/application/incremental/git-diff-parser.js'
+      );
+      const mockGetChanged = vi.mocked(getChangedFilesSinceCommit);
+
+      await fs.writeFile(
+        `/project/${CONFIG_FILENAME}`,
+        JSON.stringify({
+          rootDir: '/project',
+          outputDir: '.heury',
+          include: ['**/*'],
+          exclude: [],
+          embedding: { provider: 'local' },
+        }),
+      );
+      await fs.writeFile('/project/added.ts', 'export const x = 1;');
+
+      mockGetChanged.mockResolvedValue([
+        { filePath: 'added.ts', changeType: 'added' },
+      ]);
+
+      await analyzeCommand(
+        { dir: '/project', full: false, incremental: true },
+        fs,
+      );
+
+      // Should print stats line with added/modified/deleted
+      const calls = consoleSpy.mock.calls.map((c) => c[0]);
+      const statsLine = calls.find(
+        (c: string) => typeof c === 'string' && c.includes('Incremental analysis'),
+      );
+      expect(statsLine).toBeDefined();
+      expect(statsLine).toMatch(/\d+ added/);
+      expect(statsLine).toMatch(/\d+ modified/);
+      expect(statsLine).toMatch(/\d+ deleted/);
+    });
+
+    it('should handle git diff failure gracefully', async () => {
+      const { getChangedFilesSinceCommit } = await import(
+        '@/application/incremental/git-diff-parser.js'
+      );
+      const mockGetChanged = vi.mocked(getChangedFilesSinceCommit);
+
+      await fs.writeFile(
+        `/project/${CONFIG_FILENAME}`,
+        JSON.stringify({
+          rootDir: '/project',
+          outputDir: '.heury',
+          include: ['**/*'],
+          exclude: [],
+          embedding: { provider: 'local' },
+        }),
+      );
+
+      mockGetChanged.mockRejectedValue(new Error('Not a git repository'));
+
+      await analyzeCommand(
+        { dir: '/project', full: false, incremental: true },
+        fs,
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Not a git repository'),
+      );
+    });
+
+    it('should generate manifests after incremental analysis', async () => {
+      const { getChangedFilesSinceCommit } = await import(
+        '@/application/incremental/git-diff-parser.js'
+      );
+      const mockGetChanged = vi.mocked(getChangedFilesSinceCommit);
+
+      await fs.writeFile(
+        `/project/${CONFIG_FILENAME}`,
+        JSON.stringify({
+          rootDir: '/project',
+          outputDir: '.heury',
+          include: ['**/*'],
+          exclude: [],
+          embedding: { provider: 'local' },
+        }),
+      );
+      await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
+
+      mockGetChanged.mockResolvedValue([
+        { filePath: 'index.ts', changeType: 'modified' },
+      ]);
+
+      await analyzeCommand(
+        { dir: '/project', full: false, incremental: true },
+        fs,
+      );
+
+      expect(await fs.exists('/project/.heury/MODULES.md')).toBe(true);
+      expect(await fs.exists('/project/.heury/PATTERNS.md')).toBe(true);
+    });
   });
 });
