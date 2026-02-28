@@ -286,6 +286,187 @@ OPTIONS
 
 ---
 
+## Deep Structural Analysis Models
+
+### FunctionCall
+**Purpose:** Records a function call relationship between code units, forming the call graph.
+
+**Properties:**
+- id: string - Primary key
+- callerUnitId: string - Foreign key to the calling CodeUnit
+- calleeName: string - Name of the called function
+- calleeFilePath: string? - File path of the callee (if resolved)
+- calleeUnitId: string? - Foreign key to the called CodeUnit (if resolved)
+- lineNumber: number - Line where the call occurs
+- isAsync: boolean - Whether the call is async (await)
+
+**Indexes:**
+- callerUnitId (for "what does this function call?")
+- calleeName (for "who calls this function name?")
+- calleeUnitId (for "who calls this resolved unit?")
+
+---
+
+### TypeField
+**Purpose:** Records fields/properties of interfaces, types, classes, and structs for structural analysis.
+
+**Properties:**
+- id: string - Primary key
+- parentUnitId: string - Foreign key to the parent CodeUnit (interface, class, etc.)
+- name: string - Field name
+- fieldType: string - Type annotation of the field
+- isOptional: boolean - Whether the field is optional
+- isReadonly: boolean - Whether the field is readonly
+- lineNumber: number - Line where the field is declared
+
+**Indexes:**
+- parentUnitId (for "what fields does this type have?")
+
+---
+
+### EventFlow
+**Purpose:** Records event emission and subscription patterns for event-driven architecture analysis.
+
+**Properties:**
+- id: string - Primary key
+- codeUnitId: string - Foreign key to CodeUnit
+- eventName: string - Name of the event
+- direction: 'emit' | 'subscribe' - Whether the unit emits or subscribes to the event
+- framework: string - Event framework (node-events, socket.io, etc.)
+- lineNumber: number - Line where the event interaction occurs
+
+**Indexes:**
+- codeUnitId (for "what events does this function use?")
+- eventName (for "who emits/subscribes to this event?")
+
+---
+
+### SchemaModel
+**Purpose:** Records ORM/schema model definitions extracted from framework-specific schema files (Prisma, TypeORM, Mongoose, Drizzle, etc.).
+
+**Properties:**
+- id: string - Primary key
+- name: string - Model name (e.g., "User", "Order")
+- filePath: string - Path to the schema file
+- framework: string - ORM framework (prisma, typeorm, mongoose, drizzle)
+- tableName: string? - Database table name if specified
+- fields: SchemaModelField[] - Fields belonging to this model
+
+**Indexes:**
+- filePath (for file-level queries)
+
+---
+
+### SchemaModelField
+**Purpose:** Records individual fields within a schema model, including type, constraints, and relations.
+
+**Properties:**
+- id: string - Primary key
+- modelId: string - Foreign key to SchemaModel
+- name: string - Field name
+- fieldType: string - Field type (String, Int, DateTime, etc.)
+- isPrimaryKey: boolean - Whether this is a primary key
+- isRequired: boolean - Whether the field is required
+- isUnique: boolean - Whether the field has a unique constraint
+- hasDefault: boolean - Whether the field has a default value
+- relationTarget: string? - Target model name for relation fields
+
+**Indexes:**
+- modelId (for "what fields does this model have?")
+
+---
+
+### UnitSummary
+**Purpose:** Stores LLM-generated summaries of code units, produced by the BYOK enrichment pipeline.
+
+**Properties:**
+- id: string - Primary key
+- codeUnitId: string - Foreign key to CodeUnit (unique)
+- summary: string - AI-generated summary of what the function does
+- keyBehaviors: string[] - List of key behaviors
+- sideEffects: string[] - List of side effects
+- providerModel: string - LLM provider and model used (e.g., "anthropic/claude-sonnet-4-20250514")
+- generatedAt: string - ISO timestamp of generation
+
+**Unique Constraint:** (codeUnitId)
+
+**Indexes:**
+- codeUnitId (for lookup by code unit)
+
+---
+
+## Deep Structural Ports (Repository Interfaces)
+
+### IFunctionCallRepository
+**Methods:**
+- save(call: FunctionCall): void
+- saveBatch(calls: FunctionCall[]): void
+- findByCallerUnitId(callerUnitId: string): FunctionCall[]
+- findByCalleeName(calleeName: string): FunctionCall[]
+- findByCalleeUnitId(calleeUnitId: string): FunctionCall[]
+- findAll(): FunctionCall[]
+- deleteByCallerUnitId(callerUnitId: string): void
+- clear(): void
+
+### ITypeFieldRepository
+**Methods:**
+- save(field: TypeField): void
+- saveBatch(fields: TypeField[]): void
+- findByParentUnitId(parentUnitId: string): TypeField[]
+- findAll(): TypeField[]
+- deleteByParentUnitId(parentUnitId: string): void
+- clear(): void
+
+### IEventFlowRepository
+**Methods:**
+- save(flow: EventFlow): void
+- saveBatch(flows: EventFlow[]): void
+- findByCodeUnitId(codeUnitId: string): EventFlow[]
+- findByEventName(eventName: string): EventFlow[]
+- findAll(): EventFlow[]
+- deleteByCodeUnitId(codeUnitId: string): void
+- clear(): void
+
+### ISchemaModelRepository
+**Methods:**
+- save(model: SchemaModel): void
+- saveBatch(models: SchemaModel[]): void
+- findById(id: string): SchemaModel | undefined
+- findByName(name: string): SchemaModel | undefined
+- findByFilePath(filePath: string): SchemaModel[]
+- findByFramework(framework: string): SchemaModel[]
+- findAll(): SchemaModel[]
+- deleteByFilePath(filePath: string): void
+- clear(): void
+
+### IUnitSummaryRepository
+**Methods:**
+- save(summary: UnitSummary): void
+- saveBatch(summaries: UnitSummary[]): void
+- findByCodeUnitId(codeUnitId: string): UnitSummary | undefined
+- findAll(): UnitSummary[]
+- deleteByCodeUnitId(codeUnitId: string): void
+- clear(): void
+
+### ILlmProvider
+**Purpose:** Port for BYOK LLM providers used by the enrichment pipeline to generate code unit summaries.
+
+**Properties:**
+- providerModel: string (readonly) - Provider and model identifier
+
+**Methods:**
+- generateSummary(prompt: string): Promise<string>
+
+### LlmProviderConfig
+**Properties:**
+- provider: 'anthropic' | 'openai' | 'gemini'
+- apiKey: string
+- model: string? - Optional model override
+- maxTokens: number? - Optional max tokens
+- baseUrl: string? - Optional base URL override
+
+---
+
 ## Model Relationships
 
 ```
@@ -293,4 +474,12 @@ CodeUnit (1) ----< (many) CodeUnitPattern
 CodeUnit (1) ----< (many) CodeUnit (parent-child hierarchy)
 CodeUnitPattern (1) ---- (0..1) ApiEndpointSpec
 FileDependency: sourceFile >---- targetFile (file-level graph)
+
+Deep Structural Analysis:
+CodeUnit (1) ----< (many) FunctionCall (as caller, via callerUnitId)
+CodeUnit (0..1) ----< (many) FunctionCall (as callee, via calleeUnitId)
+CodeUnit (1) ----< (many) TypeField (via parentUnitId)
+CodeUnit (1) ----< (many) EventFlow (via codeUnitId)
+CodeUnit (1) ---- (0..1) UnitSummary (via codeUnitId, unique)
+SchemaModel (1) ----< (many) SchemaModelField (via modelId)
 ```

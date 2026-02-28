@@ -45,7 +45,7 @@ This three-tier flow is the heart of heury's value:
 
 ### Tier 1 - Quick Discovery (Manifest Files)
 
-The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, and `HOTSPOTS.md` in one shot (~5K tokens total). It gets instant understanding of what the codebase does, its key patterns, and areas of complexity. Manifests are **relevance-ranked** — the most important files and sections appear first, and items that don't fit the token budget are omitted with a summary count. Omitted items remain available via MCP tools.
+The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, `HOTSPOTS.md`, and `SCHEMA.md` in one shot (~5K tokens total). It gets instant understanding of what the codebase does, its key patterns, data models, and areas of complexity. Manifests are **relevance-ranked** — the most important files and sections appear first, and items that don't fit the token budget are omitted with a summary count. Omitted items remain available via MCP tools.
 
 ### Tier 2 - Targeted Reading (Informed by Discovery)
 
@@ -83,13 +83,14 @@ All output lives in `.heury/` at the project root. This directory is **gitignore
 
 | File | Purpose | Content |
 |------|---------|---------|
-| `MODULES.md` | Module/directory overview | High-level descriptions of what each module does |
-| `PATTERNS.md` | Detected patterns | API endpoints, DB operations, external services |
+| `MODULES.md` | Module/directory overview | High-level descriptions of what each module does, with type fields for interfaces/classes |
+| `PATTERNS.md` | Detected patterns | API endpoints, DB operations, external services, event flows |
 | `DEPENDENCIES.md` | Import/export dependency graph | How modules relate to each other |
-| `HOTSPOTS.md` | Complexity hotspots | Areas of high complexity needing attention |
-| `analysis.db` | Full SQLite database | All analysis data, vectors, relationships |
+| `HOTSPOTS.md` | Complexity hotspots | Areas of high complexity with fan-out analysis from call graph data |
+| `SCHEMA.md` | Data model definitions | ORM/schema models with fields, types, constraints, and relations |
+| `analysis.db` | Full SQLite database | All analysis data, vectors, relationships, call graph, event flows, schema models |
 
-**Token budget target**: ~5K tokens combined for the four markdown files. Enough detail for orientation, concise enough for a single context read. Each manifest uses **section-based bin-packing** — content is divided into scored sections (by exports, patterns, dependencies, complexity) and the highest-scoring sections are included first. Complete sections are always included or omitted entirely, never truncated mid-section.
+**Token budget target**: ~5K tokens combined for the five markdown files. Enough detail for orientation, concise enough for a single context read. Each manifest uses **section-based bin-packing** — content is divided into scored sections (by exports, patterns, dependencies, complexity) and the highest-scoring sections are included first. Complete sections are always included or omitted entirely, never truncated mid-section.
 
 ### MCP Server
 
@@ -115,6 +116,12 @@ Ported from Ludflow's proven analysis capabilities. Heuristic regex-based extrac
 | **Complexity Scoring** | Conditionals, loops, nesting depth, async patterns, parameter count |
 | **Dependency Graph** | Import/export relationships between files |
 | **API Endpoint Discovery** | Route extraction from framework-specific patterns |
+| **Call Graph Extraction** | Function call relationships (caller/callee) for tracing execution flow |
+| **Type Field Extraction** | Interface/class/struct field extraction with type info, optionality, readonly |
+| **Event Flow Detection** | Event emit/subscribe patterns across frameworks (Node events, Socket.io, etc.) |
+| **Schema Model Extraction** | ORM/schema model extraction (Prisma, TypeORM, Mongoose, Drizzle) with fields and relations |
+| **Guard Condition Detection** | Early-return guards, auth checks, permission checks extracted from function bodies |
+| **LLM Enrichment (BYOK)** | Optional AI-generated function summaries via Anthropic, OpenAI, or Gemini APIs |
 
 ### Language Support
 
@@ -160,6 +167,15 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | Tool | Purpose |
 |------|---------|
 | `get_file_content` | Read file content with analysis context |
+
+### Deep Structural Analysis Tools
+
+| Tool | Purpose |
+|------|---------|
+| `trace-call-chain` | Trace function call chains forward (callees) or backward (callers) with configurable depth |
+| `get-event-flow` | Query event emissions and subscriptions by event name, direction, or framework |
+| `get-data-models` | List schema/data models with their fields, types, constraints, and relations |
+| `get-function-context` | Complete aggregated context for a function: signature, calls, callers, events, types, summary |
 
 ### Semantic Search Tools
 
@@ -216,6 +232,14 @@ Configuration lives in `heury.config.json` at the project root.
     "provider": "local",       // "local" (default) or "openai"
     "model": "",               // Optional model override
     "apiKey": ""               // Required for "openai" provider
+  },
+
+  // Optional: BYOK LLM enrichment for AI-generated function summaries
+  "enrichment": {
+    "provider": "anthropic",   // "anthropic", "openai", or "gemini"
+    "apiKey": "",              // API key for the chosen provider
+    "model": "",               // Optional model override
+    "baseUrl": ""              // Optional base URL override
   }
 }
 ```
@@ -242,6 +266,7 @@ npx heury init
 |---------|---------|
 | `npx heury init` | Initialize heury in a project. Creates config, sets up git hooks, creates `.heury/` directory. |
 | `npx heury analyze` | Run full codebase analysis and generate manifest files |
+| `npx heury analyze --enrich` | Run analysis with LLM enrichment (requires enrichment config) |
 | `npx heury serve` | Start MCP server in HTTP mode |
 | `npx heury watch` | Watch mode for continuous analysis (future) |
 

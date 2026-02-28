@@ -241,6 +241,70 @@ Use lightweight, local storage backends:
 
 ---
 
+### ADR-005: Deep Structural Analysis via Heuristic Extractors
+**Date:** 2026-02-28
+**Status:** Accepted
+**Deciders:** Architecture Team
+
+#### Context
+The initial analysis pipeline (Path A/B) extracts code units, patterns, complexity, and dependencies. However, LLMs need deeper structural understanding to reason about code behavior without reading source files:
+- Function call relationships (who calls whom)
+- Type/interface field definitions (what shapes data takes)
+- Event-driven patterns (what events flow between components)
+- ORM/schema models (what the data layer looks like)
+- Guard conditions (what preconditions functions enforce)
+
+Additionally, LLM-generated function summaries can provide human-readable descriptions that complement the structural data.
+
+#### Decision
+Add a Deep Structural Analysis phase (Path C) as a post-processing step after the main analysis pipeline:
+- **5 new heuristic extractors:** call graph, type fields, event flows, schema models, guards
+- **5 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary
+- **6 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, ILlmProvider
+- **4 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context
+- **Enhanced manifests:** MODULES.md includes type fields, PATTERNS.md includes event flows, HOTSPOTS.md includes fan-out analysis, new SCHEMA.md for data models
+- **Optional BYOK LLM enrichment:** Anthropic, OpenAI, or Gemini for AI-generated function summaries
+
+#### Rationale
+**Why heuristic (regex) extractors, not AST:**
+- Consistent with existing extraction approach (no new parser dependencies)
+- Works across all 6 supported languages
+- Good enough for structural relationships (exact resolution is not critical for LLM discovery)
+
+**Why a separate post-processing phase:**
+- Deep analysis depends on code units already being extracted and stored
+- Can be run independently of the main pipeline
+- Does not slow down the core extraction for users who don't need deep analysis
+
+**Why BYOK for LLM enrichment:**
+- heury is a local-first tool; no built-in cloud dependency
+- Users bring their own API key if they want AI summaries
+- Supports multiple providers (Anthropic, OpenAI, Gemini) for flexibility
+
+**Alternatives considered:**
+1. **AST-based extraction** - Would provide exact call resolution but requires language-specific parsers, increasing dependencies significantly
+2. **Embedding deep structure in existing models** - Would bloat CodeUnit and violate SRP
+3. **Always-on LLM enrichment** - Would require a cloud dependency, violating local-first principle
+
+#### Consequences
+**Positive:**
+- LLMs can understand function relationships, data flow, and schemas without reading source
+- get-function-context provides a complete picture of any function in a single tool call
+- Schema models make database-heavy codebases navigable
+- Event flow tracking makes event-driven architectures transparent
+
+**Negative:**
+- 6 new database tables (migration 002-deep-analysis.sql)
+- Deep analysis adds processing time proportional to codebase size
+- Call graph resolution is heuristic (name-based, not fully resolved)
+
+**Neutral:**
+- Enrichment is entirely optional (BYOK, off by default)
+- All new extractors follow the existing heuristic pattern
+- Token budget remains the same; new data fills previously underutilized manifests
+
+---
+
 ## Superseded Decisions
 
 <!-- Deprecated or superseded decisions are moved here -->
@@ -265,3 +329,4 @@ Use lightweight, local storage backends:
 | 2026-02-26 | ADR-003 | Initial: TDD strategy | System |
 | 2026-02-26 | ADR-004 | Initial: Local-first storage | System |
 | 2026-02-27 | ADR-004 | Updated: Reflect in-memory vector search implementation | System |
+| 2026-02-28 | ADR-005 | Initial: Deep Structural Analysis via heuristic extractors | System |

@@ -188,14 +188,16 @@ Vector search complements keyword search by finding semantically similar code:
 
 ## Key Architectural Patterns to Port
 
-1. **Single-pass analysis pipeline** - Extract everything in one traversal per file
-2. **Heuristic (regex-based) extraction** - No AST parsing, works across languages
-3. **Language registry** - Extensible language support via OCP
-4. **Pattern detection** - Categorized code pattern recognition
-5. **MCP tool interface** - Structured access to analysis data for LLMs
-6. **Discover-read-verify workflow** - Guided exploration pattern
-7. **Port/adapter pattern** - Abstract storage, embedding providers, and search backends
-8. **Module-level pattern detection** - Catch patterns in file-scope code outside functions
+1. **Single-pass analysis pipeline** - Extract everything in one traversal per file -- PORTED
+2. **Heuristic (regex-based) extraction** - No AST parsing, works across languages -- PORTED
+3. **Language registry** - Extensible language support via OCP -- PORTED
+4. **Pattern detection** - Categorized code pattern recognition -- PORTED
+5. **MCP tool interface** - Structured access to analysis data for LLMs -- PORTED (12 tools)
+6. **Discover-read-verify workflow** - Guided exploration pattern -- PORTED
+7. **Port/adapter pattern** - Abstract storage, embedding providers, and search backends -- PORTED
+8. **Module-level pattern detection** - Catch patterns in file-scope code outside functions -- PORTED
+9. **Deep structural analysis** - Call graphs, type fields, event flows, schema models, guards -- PORTED (Path C)
+10. **LLM enrichment** - AI-generated function summaries -- PORTED (BYOK via Anthropic/OpenAI/Gemini)
 
 ---
 
