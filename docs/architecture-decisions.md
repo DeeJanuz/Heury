@@ -309,6 +309,62 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 
 ---
 
+### ADR-006: Git-Diff-Based Incremental Sync with Post-Commit Hook
+**Date:** 2026-02-28
+**Status:** Accepted
+**Deciders:** Architecture Team
+
+#### Context
+Full codebase analysis is expensive for large codebases. On each commit, only a small fraction of files typically change. Re-analyzing the entire codebase after every commit wastes time and resources. The project vision calls for automatic post-commit analysis via git hooks.
+
+#### Decision
+Implement incremental analysis as a separate code path using `git diff --name-status`:
+- **Git diff parser** (`src/application/incremental/git-diff-parser.ts`): Parses `git diff --name-status` output into structured `ChangedFile` records (added, modified, deleted, renamed)
+- **Incremental analyzer** (`src/application/incremental/incremental-analyzer.ts`): Processes only changed files -- deletes stale data, re-extracts added/modified files, handles renames by clearing old path and extracting new path
+- **CLI integration**: `--incremental` flag on `heury analyze` and `heury hook install/remove` commands for post-commit automation
+- **Structural analysis skipped**: File clusters, pattern templates, and circular dependency detection are only computed during full analysis. Incremental sync handles per-file data (code units, dependencies, env variables, guard clauses) and regenerates manifests.
+
+#### Rationale
+**Why git diff rather than file hash comparison:**
+- Git diff is authoritative: it knows exactly what changed since the last commit
+- No need to maintain a separate hash cache or last-analysis timestamp
+- Handles renames natively (R status code) which hash-based approaches would miss
+- Simpler implementation with fewer moving parts
+
+**Why skip structural analysis in incremental mode:**
+- Clusters, templates, and circular deps depend on the full dependency graph
+- Computing them for a subset of files could produce inconsistent results
+- Full analysis remains available for periodic consistency checks
+
+**Why post-commit hook instead of file watcher:**
+- Commits are natural checkpoints where the codebase is in a consistent state
+- No background process to manage
+- Works in CI/CD environments
+- File watchers can be noisy with intermediate saves
+
+**Alternatives considered:**
+1. **File hash caching** - Requires maintaining hash state, doesn't handle renames, more code
+2. **File watcher (chokidar)** - Background process, fires on intermediate saves, not commit-aligned
+3. **Always full analysis** - Too slow for large codebases on every commit
+
+#### Consequences
+**Positive:**
+- Fast post-commit updates (only changed files re-processed)
+- Manifests stay current after each commit
+- Zero configuration with `heury hook install`
+- Graceful handling of renames and copies
+
+**Negative:**
+- Structural analysis (clusters, templates, circular deps) may become stale between full analyses
+- Incremental mode cannot detect transitive impacts (e.g., a type change affecting downstream files)
+- Hook management adds CLI surface area
+
+**Neutral:**
+- Users should run full analysis periodically to refresh structural data
+- Incremental and full analysis share the same storage, so switching between them is seamless
+
+---
+
 ## Superseded Decisions
 
 <!-- Deprecated or superseded decisions are moved here -->
@@ -340,3 +396,4 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 | 2026-02-28 | ADR-005 | Updated: Pattern template detection (pattern_templates/pattern_template_followers tables), find-implementation-pattern MCP tool, Conventions section in PATTERNS.md | System |
 | 2026-02-28 | ADR-005 | Updated: Impact analysis (transitive deps via BFS, circular deps via Tarjan's SCC), plan-change-impact MCP tool, Circular Dependencies section in DEPENDENCIES.md | System |
 | 2026-02-28 | ADR-005 | Updated: Enriched embeddings (summaries, callers/callees, events, clusters in embedding text with priority ordering), vector-search post-filters (file_path_prefix, pattern_type, min_complexity, cluster_name) | System |
+| 2026-02-28 | ADR-006 | Initial: Git-diff-based incremental sync with post-commit hook | System |

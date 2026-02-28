@@ -126,6 +126,7 @@ Ported from Ludflow's proven analysis capabilities. Heuristic regex-based extrac
 | **Impact Analysis** | BFS transitive dependency computation and Tarjan's SCC circular dependency detection for change risk assessment |
 | **Enriched Embeddings** | Embedding text includes LLM summaries, call graph relationships, event names, and cluster membership for more semantic vector search |
 | **LLM Enrichment (BYOK)** | Optional AI-generated function summaries via Anthropic, OpenAI, or Gemini APIs |
+| **Incremental Sync** | Git-diff-based incremental analysis: only re-processes changed/added/deleted/renamed files since the last commit, with automatic post-commit hook support |
 
 ### Language Support
 
@@ -206,15 +207,21 @@ Data governance, document management, folder management, and other multi-tenant 
 
 | Trigger | Description |
 |---------|-------------|
-| **Git hooks (primary)** | post-commit and post-checkout hooks run incremental analysis automatically |
-| **Manual CLI** | `npx heury analyze` for full analysis on demand |
+| **Git hooks (primary)** | `heury hook install` creates a post-commit hook that runs `npx heury analyze --dir . --incremental` automatically after each commit |
+| **Manual incremental** | `npx heury analyze --incremental` to re-process only files changed in the last commit |
+| **Manual full** | `npx heury analyze` for full re-analysis of the entire codebase |
 
 ### Incremental Analysis
 
-Hybrid approach combining speed with accuracy:
+Git-diff-based approach combining speed with accuracy:
 
-- **On commit (automatic)**: File hash-based caching. Unchanged files are skipped. Dependency graph is updated only for affected files.
-- **On manual trigger**: Full re-analysis of the entire codebase. Ensures consistency and catches anything incremental analysis may have missed.
+- **On commit (automatic)**: Uses `git diff --name-status HEAD~1 HEAD` to detect changed files. Only added, modified, deleted, and renamed files are re-processed. Old data for affected files is cleared before re-extraction. Structural analysis (clusters, templates, circular deps) is skipped -- those are only computed during full analysis. Manifests are regenerated after incremental updates.
+- **On manual full trigger**: Full re-analysis of the entire codebase including structural analysis. Ensures consistency and catches anything incremental analysis may have missed.
+
+### Hook Management
+
+- `heury hook install` creates or appends to `.git/hooks/post-commit`. If a heury hook already exists, it is replaced. If a non-heury hook exists, heury commands are appended.
+- `heury hook remove` removes heury-specific lines from the post-commit hook. If the hook contains only heury content, the file is deleted entirely.
 
 ---
 
@@ -280,7 +287,10 @@ npx heury init
 |---------|---------|
 | `npx heury init` | Initialize heury in a project. Creates config, sets up git hooks, creates `.heury/` directory. |
 | `npx heury analyze` | Run full codebase analysis and generate manifest files |
+| `npx heury analyze --incremental` | Incremental analysis: only re-process files changed in the last commit |
 | `npx heury analyze --enrich` | Run analysis with LLM enrichment (requires enrichment config) |
+| `npx heury hook install` | Install a post-commit git hook that runs incremental analysis automatically |
+| `npx heury hook remove` | Remove the heury post-commit git hook |
 | `npx heury serve` | Start MCP server in HTTP mode |
 | `npx heury watch` | Watch mode for continuous analysis (future) |
 

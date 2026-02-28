@@ -592,6 +592,47 @@ OPTIONS
 
 ---
 
+## Incremental Analysis Models
+
+### ChangedFile
+**Purpose:** Represents a file detected as changed by `git diff --name-status`, used as input to incremental analysis.
+
+**Properties:**
+- filePath: string (readonly) - Path of the changed file
+- changeType: 'added' | 'modified' | 'deleted' | 'renamed' (readonly) - Type of change
+- oldPath: string? (readonly) - Previous path for renamed files
+
+**Related Functions:**
+- `parseGitDiff(diffOutput)` - Parses `git diff --name-status` output into ChangedFile records
+- `getChangedFilesSinceCommit(commitHash, cwd)` - Shells out to git and returns ChangedFile records
+
+---
+
+### IncrementalAnalysisResult
+**Purpose:** Result returned after incremental analysis of changed files.
+
+**Properties:**
+- success: boolean (readonly) - Whether the analysis completed without fatal errors
+- filesAdded: number (readonly) - Count of newly added files processed
+- filesModified: number (readonly) - Count of modified files re-processed
+- filesDeleted: number (readonly) - Count of deleted files whose data was removed
+- error: string? (readonly) - Error message if analysis failed
+
+---
+
+### IncrementalAnalysisDependencies
+**Purpose:** Dependencies required by the incremental analyzer, injected at call time.
+
+**Properties:**
+- fileSystem: IFileSystem (readonly) - File system port for reading file contents
+- codeUnitRepo: ICodeUnitRepository (readonly) - Repository for code unit storage
+- dependencyRepo: IFileDependencyRepository (readonly) - Repository for file dependency storage
+- envVarRepo: IEnvVariableRepository (readonly) - Repository for environment variable storage
+- guardClauseRepo: IGuardClauseRepository? (readonly) - Optional repository for guard clause storage
+- languageRegistry: LanguageRegistry (readonly) - Registry for resolving language extractors
+
+---
+
 ## Embedding Models
 
 ### EmbeddingTextContext

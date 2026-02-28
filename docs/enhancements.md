@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-02-28
-**Total Active Issues:** 11
+**Total Active Issues:** 14
 **Resolved This Month:** 4
 
 ---
@@ -10,12 +10,13 @@
 
 ### Medium Severity
 
-#### [MED-004] analyzeCommand Now Manages Enrichment DB Lifecycle (SRP Escalation)
+#### [MED-004] analyzeCommand Now Manages Four Execution Paths (SRP Escalation)
 - **File:** `src/cli/commands/analyze.ts`
 - **Principle:** SRP, DIP
-- **Description:** The `runEnrichment()` helper inside analyze.ts creates a *second* `DatabaseManager`, a second `SqliteCodeUnitRepository`, and a `SqliteUnitSummaryRepository` with direct concrete imports and dynamic `await import()`. This duplicates composition root responsibilities, couples the CLI command to concrete storage adapters, and makes the enrichment path difficult to test in isolation. Escalated from LOW-004 -- the third post-analysis responsibility has now been added (analysis + manifests + enrichment), triggering the refactor threshold noted in LOW-004.
-- **Suggested Fix:** Move enrichment wiring into the composition root so `analyzeCommand` receives a pre-built `EnrichmentService` (or undefined if not configured). The CLI command should only call `enrichmentService.enrich()` and report results.
+- **Description:** The `analyzeCommand` function now orchestrates four distinct execution paths: full analysis, incremental analysis, manifest generation, and enrichment. The `runIncrementalAnalysis` helper added in commit 2a6205f duplicates the `generateManifests` call block verbatim from the full analysis path (lines 64-80 vs 127-143). The file has grown to 206 lines with 4 responsibilities. The enrichment path still creates a second `DatabaseManager`, second `SqliteCodeUnitRepository`, and `SqliteUnitSummaryRepository` with direct concrete imports. Escalated from LOW-004 and updated from previous MED-004 assessment -- the fourth execution path worsens the SRP concern.
+- **Suggested Fix:** (1) Extract a shared `generateManifestsForDeps(dependencies, options, config, fs)` helper to deduplicate the manifest generation call. (2) Move enrichment wiring into the composition root so `analyzeCommand` receives a pre-built `EnrichmentService`. (3) Consider a strategy pattern or command dispatch for the full/incremental/enrich paths.
 - **Detected:** 2026-02-28, commit f749d47
+- **Updated:** 2026-02-28, commit 2a6205f
 
 #### [MED-005] schema-model-extractor.ts at 507 Lines with Four Framework Parsers (Growing SRP)
 - **File:** `src/extraction/schema-model-extractor.ts`
@@ -25,6 +26,27 @@
 - **Detected:** 2026-02-28, commit f749d47
 
 ### Low Severity
+
+#### [LOW-014] Duplicated generateManifests Call Block in analyze.ts (Full vs Incremental)
+- **File:** `src/cli/commands/analyze.ts`
+- **Principle:** DRY (supporting SRP)
+- **Description:** The `generateManifests` invocation with its 9-property dependency object and 2-property options object is copy-pasted verbatim between the full analysis path (lines 64-80) and the `runIncrementalAnalysis` helper (lines 127-143). This means any change to the manifest generation call (e.g., adding a new repo dependency) must be applied in two places.
+- **Suggested Fix:** Extract a shared helper function like `generateManifestsForContext(dependencies, options, config, fs)` that both paths call. Trivial fix.
+- **Detected:** 2026-02-28, commit 2a6205f
+
+#### [LOW-013] hook.ts Uses Concrete NodeFileSystem Fallback (DIP)
+- **File:** `src/cli/commands/hook.ts`
+- **Principle:** DIP
+- **Description:** `hookInstallCommand` and `hookRemoveCommand` each have `new NodeFileSystem()` as a default fallback when no `IFileSystem` is injected. While the injection seam exists for testing, the concrete import couples the CLI command module directly to the Node adapter. The same pattern exists in `analyzeCommand` (pre-existing), so this is consistent but worth noting as the project grows.
+- **Suggested Fix:** Wire the file system from the CLI entry point (`index.ts`) or a composition root, removing concrete adapter imports from command files. Low urgency since the injection seam already makes this testable.
+- **Detected:** 2026-02-28, commit 2a6205f
+
+#### [LOW-012] incremental-analyzer.ts Contains Duplicate globToRegex / passesGlobFilters Logic
+- **File:** `src/application/incremental/incremental-analyzer.ts`
+- **Principle:** DRY (supporting SRP)
+- **Description:** The `globToRegex` and `passesGlobFilters` functions in `incremental-analyzer.ts` duplicate the glob-matching logic that already exists in `src/application/file-filter.ts` (via `shouldProcessFile`). The incremental analyzer calls `shouldProcessFile` for language-extension checking but then also applies its own separate glob filtering. This dual filtering path means changes to glob behavior need to be synchronized in two places.
+- **Suggested Fix:** Consolidate the glob filtering into `file-filter.ts` (e.g., expose a `passesGlobFilters` function there) and have the incremental analyzer use it. The `shouldProcessFile` function could be extended to accept include/exclude patterns, or a separate exported utility could be shared.
+- **Detected:** 2026-02-28, commit 2a6205f
 
 #### [LOW-011] Duplicated Graph-Building Logic Between transitive-deps.ts and circular-deps.ts
 - **File:** `src/application/graph-analysis/transitive-deps.ts`, `src/application/graph-analysis/circular-deps.ts`
@@ -119,9 +141,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 11 |
+| Total Active | 14 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 9 |
+| Low | 12 |
 | Resolved This Month | 4 |
