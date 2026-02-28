@@ -59,7 +59,8 @@ function groupByFilePath(units: CodeUnit[]): Map<string, CodeUnit[]> {
 function formatCodeUnit(unit: CodeUnit, prefix: string): string {
   const typeName = formatType(unit.unitType);
   const asyncLabel = unit.isAsync ? 'async ' : '';
-  const signatureLabel = unit.isExported && unit.signature ? unit.signature : '';
+  const rawSignature = unit.isExported && unit.signature ? unit.signature : '';
+  const signatureLabel = rawSignature && !rawSignature.startsWith('(') ? ` ${rawSignature}` : rawSignature;
   const complexityLabel =
     unit.complexityScore > 0 ? `, complexity: ${unit.complexityScore}` : '';
 
