@@ -179,6 +179,7 @@ OPTIONS
 - patternsDetected: number
 - dependenciesFound: number
 - envVariablesFound: number
+- filesWithErrors: number - Count of files that failed during processing
 - duration: number - Time in milliseconds
 
 ---
