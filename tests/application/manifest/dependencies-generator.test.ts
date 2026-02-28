@@ -204,4 +204,177 @@ describe('generateDependenciesManifest', () => {
 
     expect(result).toBe('# Dependencies\n');
   });
+
+  describe('circular dependencies', () => {
+    it('should show circular deps section when cycles exist', () => {
+      // A -> B -> A (2-file cycle)
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/a.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      const result = generateDependenciesManifest(repo, 5000);
+
+      expect(result).toContain('## Circular Dependencies');
+    });
+
+    it('should show correct file path chain for a cycle', () => {
+      // A -> B -> A
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/a.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      const result = generateDependenciesManifest(repo, 5000);
+
+      // The cycle chain should show: src/a.ts -> src/b.ts -> src/a.ts
+      // (detectCircularDeps sorts alphabetically, so a.ts is start)
+      expect(result).toMatch(/src\/a\.ts.*→.*src\/b\.ts.*→.*src\/a\.ts/);
+    });
+
+    it('should not show circular deps section when no cycles found', () => {
+      // A -> B -> C (no cycle)
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/c.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      const result = generateDependenciesManifest(repo, 5000);
+
+      expect(result).not.toContain('Circular Dependencies');
+    });
+
+    it('should respect token budget for circular deps section', () => {
+      // Create a cycle plus many other deps to fill the budget
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/a.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      // Add many more deps to fill the budget
+      for (let i = 0; i < 50; i++) {
+        repo.save(
+          createFileDependency({
+            sourceFile: `src/modules/module-${i}.ts`,
+            targetFile: `src/shared/shared-${i}.ts`,
+            importType: ImportType.NAMED,
+          }),
+        );
+      }
+
+      // Very tight budget — circular deps section shouldn't blow past it
+      const result = generateDependenciesManifest(repo, 30);
+
+      expect(result.length).toBeLessThan(300);
+    });
+
+    it('should sort cycles by length (shortest first)', () => {
+      // 2-file cycle: x -> y -> x
+      // 3-file cycle: a -> b -> c -> a
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/x.ts',
+          targetFile: 'src/y.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/y.ts',
+          targetFile: 'src/x.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/c.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/c.ts',
+          targetFile: 'src/a.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      const result = generateDependenciesManifest(repo, 5000);
+
+      // 2-file cycle should appear before 3-file cycle
+      const twoFileCycleIndex = result.indexOf('2 files');
+      const threeFileCycleIndex = result.indexOf('3 files');
+      expect(twoFileCycleIndex).toBeGreaterThan(-1);
+      expect(threeFileCycleIndex).toBeGreaterThan(-1);
+      expect(twoFileCycleIndex).toBeLessThan(threeFileCycleIndex);
+    });
+
+    it('should display multiple cycles with numbered headings', () => {
+      // Two separate cycles
+      repo.saveBatch([
+        createFileDependency({
+          sourceFile: 'src/x.ts',
+          targetFile: 'src/y.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/y.ts',
+          targetFile: 'src/x.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/a.ts',
+          targetFile: 'src/b.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/b.ts',
+          targetFile: 'src/c.ts',
+          importType: ImportType.NAMED,
+        }),
+        createFileDependency({
+          sourceFile: 'src/c.ts',
+          targetFile: 'src/a.ts',
+          importType: ImportType.NAMED,
+        }),
+      ]);
+
+      const result = generateDependenciesManifest(repo, 5000);
+
+      expect(result).toContain('### Cycle 1');
+      expect(result).toContain('### Cycle 2');
+    });
+  });
 });

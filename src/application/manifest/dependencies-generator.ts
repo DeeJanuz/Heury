@@ -1,10 +1,12 @@
 import type { IFileDependencyRepository } from '@/domain/ports/index.js';
-import { fitSections, type Section } from './token-budgeter.js';
+import { detectCircularDeps } from '@/application/graph-analysis/circular-deps.js';
+import { estimateTokens, fitSections, type Section } from './token-budgeter.js';
 
 /**
  * Generate DEPENDENCIES.md - file dependency graph.
  * Uses section-based inclusion: hub files get highest priority,
  * source files scored by import count (orchestrators rank higher).
+ * Appends a Circular Dependencies section when cycles are detected.
  */
 export function generateDependenciesManifest(
   dependencyRepo: IFileDependencyRepository,
@@ -55,5 +57,34 @@ export function generateDependenciesManifest(
     sections.push({ content: lines.join('\n') + '\n', score: targets.length });
   }
 
-  return fitSections('# Dependencies\n', sections, maxTokens);
+  const mainOutput = fitSections('# Dependencies\n', sections, maxTokens);
+
+  // Append circular dependencies section if cycles are detected
+  const circularDeps = detectCircularDeps(allDeps);
+  if (circularDeps.length === 0) {
+    return mainOutput;
+  }
+
+  const remainingTokens = maxTokens - estimateTokens(mainOutput);
+  if (remainingTokens <= 0) {
+    return mainOutput;
+  }
+
+  const circularHeader = '\n## Circular Dependencies\n\n';
+  const circularSections: Section[] = circularDeps.map((dep, index) => {
+    const lines: string[] = [];
+    lines.push(`### Cycle ${index + 1} (${dep.length} files)`);
+    lines.push(dep.cycle.join(' → '));
+    lines.push('');
+    return { content: lines.join('\n') + '\n', score: 100 - index };
+  });
+
+  const circularOutput = fitSections(circularHeader, circularSections, remainingTokens);
+
+  // Only append if at least one cycle was included (not just the header)
+  if (circularOutput === circularHeader) {
+    return mainOutput;
+  }
+
+  return mainOutput + circularOutput;
 }
