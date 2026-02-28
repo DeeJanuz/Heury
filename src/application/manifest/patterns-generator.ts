@@ -1,7 +1,7 @@
-import type { ICodeUnitRepository, IEnvVariableRepository, IEventFlowRepository } from '@/domain/ports/index.js';
+import type { ICodeUnitRepository, IEnvVariableRepository, IEventFlowRepository, IPatternTemplateRepository } from '@/domain/ports/index.js';
 import type { CodeUnit, CodeUnitPattern, EventFlow } from '@/domain/models/index.js';
 import { PatternType } from '@/domain/models/index.js';
-import { fitSections, type Section } from './token-budgeter.js';
+import { estimateTokens, fitSections, type Section } from './token-budgeter.js';
 
 interface PatternEntry {
   readonly patternValue: string;
@@ -11,12 +11,14 @@ interface PatternEntry {
 
 /**
  * Generate PATTERNS.md - all detected patterns grouped by type.
+ * Optionally appends a Conventions section from pattern templates.
  */
 export function generatePatternsManifest(
   codeUnitRepo: ICodeUnitRepository,
   envVarRepo: IEnvVariableRepository,
   maxTokens: number,
   eventFlowRepo?: IEventFlowRepository,
+  patternTemplateRepo?: IPatternTemplateRepository,
 ): string {
   const allUnits = codeUnitRepo.findAll();
   const patternsByType = groupPatternsByType(allUnits);
@@ -101,7 +103,28 @@ export function generatePatternsManifest(
     }
   }
 
-  return fitSections('# Patterns\n\n', sections, maxTokens);
+  const patternsOutput = fitSections('# Patterns\n\n', sections, maxTokens);
+
+  // Conventions (Pattern Templates)
+  const conventionSections = buildConventionSections(codeUnitRepo, patternTemplateRepo);
+  if (conventionSections.length === 0) {
+    return patternsOutput;
+  }
+
+  const remainingTokens = maxTokens - estimateTokens(patternsOutput);
+  if (remainingTokens <= 0) {
+    return patternsOutput;
+  }
+
+  const conventionHeader = '\n## Conventions (Recurring Pattern Combinations)\n\n';
+  const conventionOutput = fitSections(conventionHeader, conventionSections, remainingTokens);
+
+  // Only append if at least one convention was included (not just the header)
+  if (conventionOutput === conventionHeader) {
+    return patternsOutput;
+  }
+
+  return patternsOutput + conventionOutput;
 }
 
 function buildEventFlowSection(
@@ -151,6 +174,47 @@ function buildEventFlowSection(
 
   lines.push('');
   return { content: lines.join('\n'), score: allFlows.length };
+}
+
+/**
+ * Build scored sections for pattern template conventions.
+ * Each template becomes a section scored by follower count (most common first).
+ */
+function buildConventionSections(
+  codeUnitRepo: ICodeUnitRepository,
+  patternTemplateRepo?: IPatternTemplateRepository,
+): Section[] {
+  if (!patternTemplateRepo) {
+    return [];
+  }
+
+  const allTemplates = patternTemplateRepo.findAll();
+  if (allTemplates.length === 0) {
+    return [];
+  }
+
+  return allTemplates.map(({ template }) => {
+    const lines: string[] = [];
+    lines.push(`### ${template.name} (${template.followerCount} implementations)`);
+
+    // Look up template code unit for line range
+    const unit = codeUnitRepo.findById(template.templateUnitId);
+    if (unit) {
+      lines.push(`Template: ${template.templateFilePath} (lines ${unit.lineStart}-${unit.lineEnd})`);
+    } else {
+      lines.push(`Template: ${template.templateFilePath}`);
+    }
+
+    if (template.conventions.length > 0) {
+      lines.push('Conventions:');
+      for (const convention of template.conventions) {
+        lines.push(`- ${convention}`);
+      }
+    }
+
+    lines.push('');
+    return { content: lines.join('\n'), score: template.followerCount };
+  });
 }
 
 function groupPatternsByType(units: CodeUnit[]): Map<PatternType, PatternEntry[]> {

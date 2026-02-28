@@ -14,6 +14,7 @@ import {
   InMemoryEventFlowRepository,
   InMemorySchemaModelRepository,
   InMemoryFileClusterRepository,
+  InMemoryPatternTemplateRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(fileSystem: IFileSystem): AnalysisDependencies {
@@ -563,6 +564,42 @@ export function handleB() {
       // The key assertion: old-cluster should be gone
       const clusters = fileClusterRepo.findAll();
       expect(clusters.some(c => c.cluster.id === 'old-cluster')).toBe(false);
+    });
+  });
+
+  describe('pattern template clearing', () => {
+    it('should clear patternTemplateRepo in clearAllData when provided', async () => {
+      const patternTemplateRepo = new InMemoryPatternTemplateRepository();
+
+      // Pre-populate template data
+      patternTemplateRepo.save(
+        {
+          id: 'old-template',
+          name: 'Old',
+          description: 'Old template',
+          patternTypes: ['API_ENDPOINT'],
+          templateUnitId: 'old-unit',
+          templateFilePath: 'src/old.ts',
+          followerCount: 0,
+          conventions: ['old convention'],
+        },
+        [],
+      );
+      expect(patternTemplateRepo.findAll().length).toBe(1);
+
+      const { deps } = createDepsWithDeepAnalysis(fs);
+      const depsWithTemplates: AnalysisDependencies = {
+        ...deps,
+        patternTemplateRepo,
+      };
+      const orchestrator = new AnalysisOrchestrator(depsWithTemplates);
+
+      // Full analysis calls clearAllData internally
+      await orchestrator.analyze(defaultOptions());
+
+      // Old template data should have been cleared by clearAllData
+      const templates = patternTemplateRepo.findAll();
+      expect(templates.some(t => t.template.id === 'old-template')).toBe(false);
     });
   });
 });

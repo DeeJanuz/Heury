@@ -5,12 +5,15 @@ import {
   InMemoryCodeUnitRepository,
   InMemoryEnvVariableRepository,
   InMemoryEventFlowRepository,
+  InMemoryPatternTemplateRepository,
 } from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
   createEnvVariable,
   createEventFlow,
+  createPatternTemplate,
+  createPatternTemplateFollower,
   CodeUnitType,
   PatternType,
 } from '@/domain/models/index.js';
@@ -545,6 +548,285 @@ describe('generatePatternsManifest', () => {
 
       // Should not crash; the event flow with unknown unit should be skipped or handled gracefully
       expect(result).toContain('# Patterns');
+    });
+  });
+
+  describe('conventions (pattern templates)', () => {
+    let patternTemplateRepo: InMemoryPatternTemplateRepository;
+
+    beforeEach(() => {
+      patternTemplateRepo = new InMemoryPatternTemplateRepository();
+    });
+
+    it('should show conventions section when templates exist', () => {
+      codeUnitRepo.save(
+        createCodeUnit({
+          id: 'tmpl-unit-1',
+          filePath: 'src/api/handlers/create-user.ts',
+          name: 'createUser',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 10,
+          lineEnd: 45,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-1',
+          name: 'Api Endpoint with Database Write',
+          description: 'API endpoint that writes to database',
+          patternTypes: [PatternType.API_ENDPOINT, PatternType.DATABASE_WRITE],
+          templateUnitId: 'tmpl-unit-1',
+          templateFilePath: 'src/api/handlers/create-user.ts',
+          followerCount: 5,
+          conventions: [
+            'Validates input before database write',
+            'Wraps database operations with error handling',
+          ],
+        }),
+        [
+          createPatternTemplateFollower({ templateId: 'tmpl-1', filePath: 'src/api/handlers/update-user.ts', unitName: 'updateUser' }),
+        ],
+      );
+
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      expect(result).toContain('## Conventions (Recurring Pattern Combinations)');
+      expect(result).toContain('Api Endpoint with Database Write');
+      expect(result).toContain('5 implementations');
+      expect(result).toContain('src/api/handlers/create-user.ts');
+      expect(result).toContain('lines 10-45');
+      expect(result).toContain('Validates input before database write');
+      expect(result).toContain('Wraps database operations with error handling');
+    });
+
+    it('should sort templates by follower count descending', () => {
+      codeUnitRepo.save(
+        createCodeUnit({
+          id: 'tmpl-unit-a',
+          filePath: 'src/middleware/auth.ts',
+          name: 'authMiddleware',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 5,
+          lineEnd: 30,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 3,
+        }),
+      );
+      codeUnitRepo.save(
+        createCodeUnit({
+          id: 'tmpl-unit-b',
+          filePath: 'src/api/handlers/create-user.ts',
+          name: 'createUser',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 10,
+          lineEnd: 45,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-small',
+          name: 'Middleware with Authentication',
+          description: 'Auth middleware pattern',
+          patternTypes: [PatternType.EXTERNAL_SERVICE],
+          templateUnitId: 'tmpl-unit-a',
+          templateFilePath: 'src/middleware/auth.ts',
+          followerCount: 2,
+          conventions: ['Checks authentication before proceeding'],
+        }),
+        [],
+      );
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-large',
+          name: 'Api Endpoint with Database Write',
+          description: 'API endpoint that writes to DB',
+          patternTypes: [PatternType.API_ENDPOINT, PatternType.DATABASE_WRITE],
+          templateUnitId: 'tmpl-unit-b',
+          templateFilePath: 'src/api/handlers/create-user.ts',
+          followerCount: 7,
+          conventions: ['Validates input before database write'],
+        }),
+        [],
+      );
+
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      const largeIdx = result.indexOf('Api Endpoint with Database Write');
+      const smallIdx = result.indexOf('Middleware with Authentication');
+      expect(largeIdx).toBeGreaterThan(-1);
+      expect(smallIdx).toBeGreaterThan(-1);
+      expect(largeIdx).toBeLessThan(smallIdx);
+    });
+
+    it('should show template name, implementation count, file path, and line range', () => {
+      codeUnitRepo.save(
+        createCodeUnit({
+          id: 'tmpl-unit-detail',
+          filePath: 'src/services/order.ts',
+          name: 'placeOrder',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 20,
+          lineEnd: 80,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 12,
+        }),
+      );
+
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-detail',
+          name: 'Order Processing Pipeline',
+          description: 'Standard order processing',
+          patternTypes: [PatternType.DATABASE_WRITE],
+          templateUnitId: 'tmpl-unit-detail',
+          templateFilePath: 'src/services/order.ts',
+          followerCount: 3,
+          conventions: ['Validates stock before commit'],
+        }),
+        [],
+      );
+
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      expect(result).toContain('### Order Processing Pipeline (3 implementations)');
+      expect(result).toContain('Template: src/services/order.ts (lines 20-80)');
+    });
+
+    it('should list conventions as bullet points', () => {
+      codeUnitRepo.save(
+        createCodeUnit({
+          id: 'tmpl-unit-conv',
+          filePath: 'src/api/create.ts',
+          name: 'create',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 50,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-conv',
+          name: 'CRUD Endpoint',
+          description: 'Standard CRUD pattern',
+          patternTypes: [PatternType.API_ENDPOINT],
+          templateUnitId: 'tmpl-unit-conv',
+          templateFilePath: 'src/api/create.ts',
+          followerCount: 4,
+          conventions: [
+            'Validates input schema',
+            'Returns 201 on success',
+            'Logs operation for audit',
+          ],
+        }),
+        [],
+      );
+
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      expect(result).toContain('- Validates input schema');
+      expect(result).toContain('- Returns 201 on success');
+      expect(result).toContain('- Logs operation for audit');
+    });
+
+    it('should not show conventions section when patternTemplateRepo is not provided', () => {
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000);
+
+      expect(result).not.toContain('Conventions');
+    });
+
+    it('should not show conventions section when no templates exist', () => {
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      expect(result).not.toContain('Conventions');
+    });
+
+    it('should respect token budget for conventions section', () => {
+      // Create many templates to make the conventions section large
+      for (let i = 0; i < 20; i++) {
+        codeUnitRepo.save(
+          createCodeUnit({
+            id: `tmpl-unit-budget-${i}`,
+            filePath: `src/handlers/handler-${i}.ts`,
+            name: `handler${i}`,
+            unitType: CodeUnitType.FUNCTION,
+            lineStart: 1,
+            lineEnd: 50,
+            isAsync: true,
+            isExported: true,
+            language: 'typescript',
+            complexityScore: 5,
+          }),
+        );
+
+        patternTemplateRepo.save(
+          createPatternTemplate({
+            id: `tmpl-budget-${i}`,
+            name: `Pattern Template Number ${i} With a Long Name`,
+            description: `Description for template ${i}`,
+            patternTypes: [PatternType.API_ENDPOINT],
+            templateUnitId: `tmpl-unit-budget-${i}`,
+            templateFilePath: `src/handlers/handler-${i}.ts`,
+            followerCount: 20 - i,
+            conventions: [
+              `Convention A for template ${i}`,
+              `Convention B for template ${i}`,
+              `Convention C for template ${i}`,
+            ],
+          }),
+          [],
+        );
+      }
+
+      // Use a tiny budget that won't fit the conventions section
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 15, undefined, patternTemplateRepo);
+
+      // The header takes some budget; conventions should not blow past the limit
+      expect(result).toContain('# Patterns');
+      // The total output should be bounded
+      expect(result.length).toBeLessThan(200);
+    });
+
+    it('should use templateFilePath when template unit is not in codeUnitRepo', () => {
+      // Don't save the code unit - only the template exists
+      patternTemplateRepo.save(
+        createPatternTemplate({
+          id: 'tmpl-orphan',
+          name: 'Orphan Template',
+          description: 'Template with missing code unit',
+          patternTypes: [PatternType.API_ENDPOINT],
+          templateUnitId: 'nonexistent-unit',
+          templateFilePath: 'src/orphan/handler.ts',
+          followerCount: 3,
+          conventions: ['Some convention'],
+        }),
+        [],
+      );
+
+      const result = generatePatternsManifest(codeUnitRepo, envVarRepo, 5000, undefined, patternTemplateRepo);
+
+      expect(result).toContain('### Orphan Template (3 implementations)');
+      expect(result).toContain('Template: src/orphan/handler.ts');
+      // Should not crash, just won't have line range
+      expect(result).not.toContain('lines');
     });
   });
 });

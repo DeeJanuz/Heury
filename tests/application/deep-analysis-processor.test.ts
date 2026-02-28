@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { processDeepAnalysis, type DeepAnalysisDependencies } from '@/application/deep-analysis-processor.js';
 import type { FileProcessingResult } from '@/application/file-processor.js';
-import { createCodeUnit, CodeUnitType, createFileDependency } from '@/domain/models/index.js';
+import { createCodeUnit, CodeUnitType, createFileDependency, PatternType, createCodeUnitPattern } from '@/domain/models/index.js';
 import {
   InMemoryFunctionCallRepository,
   InMemoryTypeFieldRepository,
@@ -11,6 +11,8 @@ import {
   InMemoryGuardClauseRepository,
   InMemoryFileDependencyRepository,
   InMemoryFileClusterRepository,
+  InMemoryCodeUnitRepository,
+  InMemoryPatternTemplateRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(): DeepAnalysisDependencies & {
@@ -513,6 +515,142 @@ model Post {
       const clusters = fileClusterRepo.findAll();
       expect(clusters.length).toBe(0);
       expect(result.clustersComputed).toBe(0);
+    });
+  });
+
+  describe('pattern template detection', () => {
+    it('should detect and save pattern templates when repos are provided', () => {
+      const codeUnitRepo = new InMemoryCodeUnitRepository();
+      const patternTemplateRepo = new InMemoryPatternTemplateRepository();
+
+      // Create 3+ units with the same pattern combo so templates are detected
+      const units = ['fn-1', 'fn-2', 'fn-3'].map(id =>
+        createCodeUnit({
+          id,
+          filePath: `src/${id}.ts`,
+          name: `handler_${id}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: id, patternType: PatternType.API_ENDPOINT, patternValue: 'GET /api' }),
+            createCodeUnitPattern({ codeUnitId: id, patternType: PatternType.DATABASE_READ, patternValue: 'findMany' }),
+          ],
+        }),
+      );
+
+      // Save units to the repo (as the orchestrator would have done)
+      codeUnitRepo.saveBatch(units);
+
+      const depsWithTemplates: DeepAnalysisDependencies = {
+        ...deps,
+        codeUnitRepo,
+        patternTemplateRepo,
+      };
+
+      const result = processDeepAnalysis([], new Map(), depsWithTemplates);
+
+      expect(result.templatesDetected).toBeGreaterThanOrEqual(1);
+      const templates = patternTemplateRepo.findAll();
+      expect(templates.length).toBeGreaterThanOrEqual(1);
+      expect(templates[0].template.patternTypes).toContain('API_ENDPOINT');
+      expect(templates[0].template.patternTypes).toContain('DATABASE_READ');
+    });
+
+    it('should not run template detection when patternTemplateRepo is not provided', () => {
+      const result = processDeepAnalysis([], new Map(), deps);
+
+      expect(result.templatesDetected).toBe(0);
+    });
+
+    it('should clear existing templates before saving new ones', () => {
+      const codeUnitRepo = new InMemoryCodeUnitRepository();
+      const patternTemplateRepo = new InMemoryPatternTemplateRepository();
+
+      // Pre-populate with old template
+      patternTemplateRepo.save(
+        {
+          id: 'old-template',
+          name: 'Old',
+          description: 'Old template',
+          patternTypes: ['API_ENDPOINT'],
+          templateUnitId: 'old-unit',
+          templateFilePath: 'src/old.ts',
+          followerCount: 0,
+          conventions: ['old convention'],
+        },
+        [],
+      );
+      expect(patternTemplateRepo.findAll().length).toBe(1);
+
+      // Create 3 units with same pattern so new templates are detected
+      const units = ['fn-1', 'fn-2', 'fn-3'].map(id =>
+        createCodeUnit({
+          id,
+          filePath: `src/${id}.ts`,
+          name: `handler_${id}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: id, patternType: PatternType.DATABASE_WRITE, patternValue: 'create' }),
+          ],
+        }),
+      );
+      codeUnitRepo.saveBatch(units);
+
+      const depsWithTemplates: DeepAnalysisDependencies = {
+        ...deps,
+        codeUnitRepo,
+        patternTemplateRepo,
+      };
+
+      processDeepAnalysis([], new Map(), depsWithTemplates);
+
+      const templates = patternTemplateRepo.findAll();
+      // Old template should be gone
+      expect(templates.some(t => t.template.id === 'old-template')).toBe(false);
+    });
+
+    it('should return zero templatesDetected when no patterns qualify', () => {
+      const codeUnitRepo = new InMemoryCodeUnitRepository();
+      const patternTemplateRepo = new InMemoryPatternTemplateRepository();
+
+      // Only 2 units with same pattern — not enough for template (need 3+)
+      const units = ['fn-1', 'fn-2'].map(id =>
+        createCodeUnit({
+          id,
+          filePath: `src/${id}.ts`,
+          name: `handler_${id}`,
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: id, patternType: PatternType.API_ENDPOINT, patternValue: 'GET /api' }),
+          ],
+        }),
+      );
+      codeUnitRepo.saveBatch(units);
+
+      const depsWithTemplates: DeepAnalysisDependencies = {
+        ...deps,
+        codeUnitRepo,
+        patternTemplateRepo,
+      };
+
+      const result = processDeepAnalysis([], new Map(), depsWithTemplates);
+
+      expect(result.templatesDetected).toBe(0);
+      expect(patternTemplateRepo.findAll().length).toBe(0);
     });
   });
 });

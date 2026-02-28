@@ -21,6 +21,7 @@ import type {
   IUnitSummaryRepository,
   IGuardClauseRepository,
   IFileClusterRepository,
+  IPatternTemplateRepository,
 } from '@/domain/ports/index.js';
 import { ToolRegistry } from './tool-registry.js';
 import { createGetAnalysisStatsTool } from './tools/get-analysis-stats.js';
@@ -40,6 +41,7 @@ import { createGetPatternsByTypeTool } from './tools/get-patterns-by-type.js';
 import { createGetUnitSummariesTool } from './tools/get-unit-summaries.js';
 import { createGetFunctionGuardsTool } from './tools/get-function-guards.js';
 import { createGetFeatureAreaTool } from './tools/get-feature-area.js';
+import { createFindImplementationPatternTool } from './tools/find-implementation-pattern.js';
 
 export interface McpServerDependencies {
   codeUnitRepo: ICodeUnitRepository;
@@ -55,6 +57,7 @@ export interface McpServerDependencies {
   unitSummaryRepo?: IUnitSummaryRepository;
   guardClauseRepo?: IGuardClauseRepository;
   fileClusterRepo?: IFileClusterRepository;
+  patternTemplateRepo?: IPatternTemplateRepository;
 }
 
 export function createMcpServer(deps: McpServerDependencies): Server {
@@ -88,6 +91,7 @@ Quick reference:
 - get_unit_summaries: LLM-generated summaries for code units with key behaviors and side effects
 - get_function_guards: Query guard clauses in functions by unit ID, file path, or guard type
 - get_feature_area: Rich context about a feature area (file cluster): metadata, code units, dependencies, patterns, and summary
+- find_implementation_pattern: Find implementation pattern templates by fuzzy query with canonical example and follower list
 
 Token tips: Start with manifests (free orientation, relevance-ranked). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
@@ -159,6 +163,14 @@ Token tips: Start with manifests (free orientation, relevance-ranked). Use get_c
         fileClusterRepo: deps.fileClusterRepo,
         codeUnitRepo: deps.codeUnitRepo,
         dependencyRepo: deps.dependencyRepo,
+      }),
+    );
+  }
+  if (deps.patternTemplateRepo) {
+    tools.push(
+      createFindImplementationPatternTool({
+        patternTemplateRepo: deps.patternTemplateRepo,
+        codeUnitRepo: deps.codeUnitRepo,
       }),
     );
   }

@@ -14,3 +14,4 @@ export type { IUnitSummaryRepository } from './unit-summary-repository.js';
 export type { ILlmProvider, LlmProviderConfig } from './llm-provider.js';
 export type { IGuardClauseRepository } from './guard-clause-repository.js';
 export type { IFileClusterRepository } from './file-cluster-repository.js';
+export type { IPatternTemplateRepository } from './pattern-template-repository.js';

@@ -10,9 +10,10 @@
  */
 
 import type { CodeUnit } from '@/domain/models/index.js';
-import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField, createGuardClause, createFileCluster, createFileClusterMember } from '@/domain/models/index.js';
+import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField, createGuardClause, createFileCluster, createFileClusterMember, createPatternTemplate, createPatternTemplateFollower } from '@/domain/models/index.js';
 import { CodeUnitType } from '@/domain/models/index.js';
-import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository, IFileDependencyRepository, IFileClusterRepository } from '@/domain/ports/index.js';
+import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository, IFileDependencyRepository, IFileClusterRepository, IPatternTemplateRepository, ICodeUnitRepository } from '@/domain/ports/index.js';
+import { detectPatternTemplates } from './pattern-templates/template-analyzer.js';
 import { extractFunctionCalls } from '@/extraction/call-graph-extractor.js';
 import { extractTypeFields } from '@/extraction/type-field-extractor.js';
 import { extractEventFlows } from '@/extraction/event-flow-extractor.js';
@@ -29,6 +30,8 @@ export interface DeepAnalysisDependencies {
   readonly guardClauseRepo?: IGuardClauseRepository;
   readonly dependencyRepo?: IFileDependencyRepository;
   readonly fileClusterRepo?: IFileClusterRepository;
+  readonly codeUnitRepo?: ICodeUnitRepository;
+  readonly patternTemplateRepo?: IPatternTemplateRepository;
 }
 
 export interface DeepAnalysisResult {
@@ -38,6 +41,7 @@ export interface DeepAnalysisResult {
   readonly schemaModelsExtracted: number;
   readonly guardsExtracted: number;
   readonly clustersComputed: number;
+  readonly templatesDetected: number;
 }
 
 /**
@@ -189,6 +193,40 @@ export function processDeepAnalysis(
     }
   }
 
+  // Detect pattern templates from all code units
+  let templatesDetected = 0;
+  if (deps.patternTemplateRepo && deps.codeUnitRepo) {
+    const allCodeUnits = deps.codeUnitRepo.findAll();
+    const templates = detectPatternTemplates(allCodeUnits);
+
+    deps.patternTemplateRepo.clear();
+
+    if (templates.length > 0) {
+      const mapped = templates.map(t => ({
+        template: createPatternTemplate({
+          id: t.id,
+          name: t.name,
+          description: t.description,
+          patternTypes: t.patternTypes,
+          templateUnitId: t.templateUnitId,
+          templateFilePath: t.templateFilePath,
+          followerCount: t.followerCount,
+          conventions: t.conventions,
+        }),
+        followers: t.followers.map(f =>
+          createPatternTemplateFollower({
+            templateId: t.id,
+            filePath: f.filePath,
+            unitName: f.unitName,
+          }),
+        ),
+      }));
+
+      deps.patternTemplateRepo.saveBatch(mapped);
+      templatesDetected = templates.length;
+    }
+  }
+
   return {
     functionCallsExtracted,
     typeFieldsExtracted,
@@ -196,6 +234,7 @@ export function processDeepAnalysis(
     schemaModelsExtracted,
     guardsExtracted,
     clustersComputed,
+    templatesDetected,
   };
 }
 

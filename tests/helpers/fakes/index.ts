@@ -13,3 +13,4 @@ export { InMemorySchemaModelRepository } from './fake-schema-model-repository.js
 export { InMemoryUnitSummaryRepository } from './fake-unit-summary-repository.js';
 export { InMemoryGuardClauseRepository } from './fake-guard-clause-repository.js';
 export { InMemoryFileClusterRepository } from './fake-file-cluster-repository.js';
+export { InMemoryPatternTemplateRepository } from './fake-pattern-template-repository.js';

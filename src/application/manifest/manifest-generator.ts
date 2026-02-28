@@ -8,6 +8,7 @@ import type {
   ISchemaModelRepository,
   IFunctionCallRepository,
   IFileClusterRepository,
+  IPatternTemplateRepository,
 } from '@/domain/ports/index.js';
 import { allocateBudget } from './token-budgeter.js';
 import { generateModulesManifest } from './modules-generator.js';
@@ -29,6 +30,7 @@ export interface ManifestDependencies {
   readonly schemaModelRepo?: ISchemaModelRepository;
   readonly functionCallRepo?: IFunctionCallRepository;
   readonly fileClusterRepo?: IFileClusterRepository;
+  readonly patternTemplateRepo?: IPatternTemplateRepository;
 }
 
 export interface ManifestOptions {
@@ -62,6 +64,7 @@ export async function generateManifests(
     deps.envVarRepo,
     budget.patterns,
     deps.eventFlowRepo,
+    deps.patternTemplateRepo,
   );
   const dependencies = generateDependenciesManifest(
     deps.dependencyRepo,

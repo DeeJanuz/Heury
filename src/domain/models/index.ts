@@ -22,3 +22,9 @@ export {
   type RepositoryFileCluster,
   type RepositoryFileClusterMember,
 } from './file-cluster.js';
+export {
+  createPatternTemplate,
+  createPatternTemplateFollower,
+  type RepositoryPatternTemplate,
+  type RepositoryPatternTemplateFollower,
+} from './pattern-template.js';

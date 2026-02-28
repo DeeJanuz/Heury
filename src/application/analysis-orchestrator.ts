@@ -30,6 +30,7 @@ import type {
   ISchemaModelRepository,
   IGuardClauseRepository,
   IFileClusterRepository,
+  IPatternTemplateRepository,
   IFileSystem,
 } from '@/domain/ports/index.js';
 import type { LanguageRegistry } from '@/extraction/language-registry.js';
@@ -58,6 +59,7 @@ export interface AnalysisDependencies {
   readonly schemaModelRepo?: ISchemaModelRepository;
   readonly guardClauseRepo?: IGuardClauseRepository;
   readonly fileClusterRepo?: IFileClusterRepository;
+  readonly patternTemplateRepo?: IPatternTemplateRepository;
 }
 
 export class AnalysisOrchestrator {
@@ -239,6 +241,8 @@ export class AnalysisOrchestrator {
         guardClauseRepo: this.deps.guardClauseRepo,
         dependencyRepo: this.deps.dependencyRepo,
         fileClusterRepo: this.deps.fileClusterRepo,
+        codeUnitRepo: this.deps.codeUnitRepo,
+        patternTemplateRepo: this.deps.patternTemplateRepo,
       });
     }
 
@@ -260,6 +264,7 @@ export class AnalysisOrchestrator {
     this.deps.dependencyRepo.clear();
     this.deps.envVarRepo.clear();
     this.deps.fileClusterRepo?.clear();
+    this.deps.patternTemplateRepo?.clear();
     if (this.hasDeepAnalysisDeps()) {
       this.deps.functionCallRepo!.clear();
       this.deps.typeFieldRepo!.clear();
