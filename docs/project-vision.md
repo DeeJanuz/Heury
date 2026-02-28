@@ -85,7 +85,7 @@ All output lives in `.heury/` at the project root. This directory is **gitignore
 |------|---------|---------|
 | `MODULES.md` | Module/directory overview | High-level descriptions of what each module does, with type fields for interfaces/classes and feature area clustering |
 | `PATTERNS.md` | Detected patterns | API endpoints, DB operations, external services, event flows |
-| `DEPENDENCIES.md` | Import/export dependency graph | How modules relate to each other |
+| `DEPENDENCIES.md` | Import/export dependency graph | How modules relate to each other, with circular dependency detection |
 | `HOTSPOTS.md` | Complexity hotspots | Areas of high complexity with fan-out analysis from call graph data |
 | `SCHEMA.md` | Data model definitions | ORM/schema models with fields, types, constraints, and relations |
 | `analysis.db` | Full SQLite database | All analysis data, vectors, relationships, call graph, event flows, schema models |
@@ -122,6 +122,8 @@ Ported from Ludflow's proven analysis capabilities. Heuristic regex-based extrac
 | **Schema Model Extraction** | ORM/schema model extraction (Prisma, TypeORM, Mongoose, Drizzle) with fields and relations |
 | **Guard Condition Detection** | Early-return guards, auth checks, permission checks extracted from function bodies |
 | **Import Graph Clustering** | Connected-component clustering on the import graph with directory-boundary splitting for large components; identifies feature areas |
+| **Pattern Template Detection** | Identifies recurring pattern type combinations across code units, selects canonical examples as templates, and tracks followers |
+| **Impact Analysis** | BFS transitive dependency computation and Tarjan's SCC circular dependency detection for change risk assessment |
 | **LLM Enrichment (BYOK)** | Optional AI-generated function summaries via Anthropic, OpenAI, or Gemini APIs |
 
 ### Language Support
@@ -182,6 +184,8 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | `get-unit-summaries` | LLM-generated summaries for code units with key behaviors and side effects |
 | `get-function-guards` | Query guard clauses in functions by unit ID, file path, or guard type |
 | `get-feature-area` | Rich context about a feature area (file cluster): metadata, code units, internal/external dependencies, patterns, entry points, and summary |
+| `find-implementation-pattern` | Find implementation pattern templates by fuzzy query with canonical example and follower list |
+| `plan-change-impact` | Assess impact of changing a file or function: transitive dependents, circular deps, affected endpoints/patterns, cluster membership, and risk level |
 
 ### Semantic Search Tools
 

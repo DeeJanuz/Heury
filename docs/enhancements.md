@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-02-28
-**Total Active Issues:** 10
+**Total Active Issues:** 11
 **Resolved This Month:** 4
 
 ---
@@ -25,6 +25,13 @@
 - **Detected:** 2026-02-28, commit f749d47
 
 ### Low Severity
+
+#### [LOW-011] Duplicated Graph-Building Logic Between transitive-deps.ts and circular-deps.ts
+- **File:** `src/application/graph-analysis/transitive-deps.ts`, `src/application/graph-analysis/circular-deps.ts`
+- **Principle:** DRY (supporting SRP)
+- **Description:** Both `transitive-deps.ts` (`buildDirectedAdjacency`) and `circular-deps.ts` (`buildDirectedGraph`) contain near-identical logic for building a `Map<string, Set<string>>` adjacency graph from `FileDependency[]`, including the same deduplication-via-seen-set approach and node-existence guarantees. The `transitive-deps` version adds directional reversal for the "dependents" direction, but the core structure (iterate deps, deduplicate by string key, populate Map of Sets) is duplicated.
+- **Suggested Fix:** Extract a shared `buildAdjacencyGraph(deps, direction?)` utility into a `src/application/graph-analysis/graph-utils.ts` module. Both consumers would call this shared function. The `direction` parameter (defaulting to `'dependencies'`) handles the edge reversal for the transitive-deps use case. Trivial fix with no behavioral change.
+- **Detected:** 2026-02-28, commit 3e8721b
 
 #### [LOW-010] generatePatternsManifest Growing Positional Parameter List (5 Params)
 - **File:** `src/application/manifest/patterns-generator.ts`
@@ -112,9 +119,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 10 |
+| Total Active | 11 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 8 |
+| Low | 9 |
 | Resolved This Month | 4 |

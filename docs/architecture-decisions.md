@@ -261,10 +261,11 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 - **5 new heuristic extractors:** call graph, type fields, event flows, schema models, guards
 - **Import graph clustering:** Connected-component analysis on the file dependency graph with directory-boundary splitting for large components; computes feature areas with cohesion metrics and entry points
 - **Pattern template detection:** Identifies recurring pattern type combinations across code units, selects canonical examples as templates, and tracks followers; exposed in PATTERNS.md manifests and via MCP tool
+- **Impact analysis:** BFS transitive dependency computation (`computeTransitiveDeps`) and Tarjan's SCC circular dependency detection (`detectCircularDeps`) in `src/application/graph-analysis/`
 - **10 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary, RepositoryGuardClause, RepositoryFileCluster/RepositoryFileClusterMember, RepositoryPatternTemplate/RepositoryPatternTemplateFollower
 - **9 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, IGuardClauseRepository, IFileClusterRepository, IPatternTemplateRepository, ILlmProvider
-- **9 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context, get-patterns-by-type, get-unit-summaries, get-function-guards, get-feature-area, find-implementation-pattern
-- **Enhanced manifests:** MODULES.md includes type fields and feature area clustering, PATTERNS.md includes event flows and convention sections from pattern templates, HOTSPOTS.md includes fan-out analysis, new SCHEMA.md for data models
+- **10 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context, get-patterns-by-type, get-unit-summaries, get-function-guards, get-feature-area, find-implementation-pattern, plan-change-impact
+- **Enhanced manifests:** MODULES.md includes type fields and feature area clustering, PATTERNS.md includes event flows and convention sections from pattern templates, HOTSPOTS.md includes fan-out analysis, DEPENDENCIES.md includes circular dependency detection, new SCHEMA.md for data models
 - **Optional BYOK LLM enrichment:** Anthropic, OpenAI, or Gemini for AI-generated function summaries
 
 #### Rationale
@@ -336,3 +337,4 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 | 2026-02-28 | ADR-005 | Updated: Guard clause persistence (migration 003), 3 new MCP tools (get-patterns-by-type, get-unit-summaries, get-function-guards) | System |
 | 2026-02-28 | ADR-005 | Updated: Import graph clustering (file_clusters/file_cluster_members tables), get-feature-area MCP tool, feature areas in MODULES.md manifests | System |
 | 2026-02-28 | ADR-005 | Updated: Pattern template detection (pattern_templates/pattern_template_followers tables), find-implementation-pattern MCP tool, Conventions section in PATTERNS.md | System |
+| 2026-02-28 | ADR-005 | Updated: Impact analysis (transitive deps via BFS, circular deps via Tarjan's SCC), plan-change-impact MCP tool, Circular Dependencies section in DEPENDENCIES.md | System |
