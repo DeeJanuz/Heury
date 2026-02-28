@@ -59,6 +59,24 @@ const PATTERNS = {
    * Matches: export default (params) => or export default async (params) =>
    */
   exportDefaultArrow: /export\s+default\s+(?:async\s+)?\(([^)]*)\)\s*(?::\s*([^=]+))?\s*=>/g,
+
+  /**
+   * Interface declaration
+   * Matches: interface Foo { or export interface Foo extends Bar {
+   */
+  interfaceDeclaration: /(export\s+)?interface\s+(\w+)(?:\s+extends\s+([^{]+))?\s*\{/g,
+
+  /**
+   * Enum declaration
+   * Matches: enum Foo { or export enum Foo { or export const enum Foo {
+   */
+  enumDeclaration: /(export\s+)?(const\s+)?enum\s+(\w+)\s*\{/g,
+
+  /**
+   * Type alias declaration
+   * Matches: type Foo = or export type Foo<T> =
+   */
+  typeAlias: /(export\s+)?type\s+(\w+)\s*(<[^>]*>)?\s*=/g,
 };
 
 /**
@@ -99,6 +117,15 @@ export function extractCodeUnits(content: string, filePath: string): CodeUnitDec
 
   // Extract classes with their methods
   extractClasses(content, units, seenUnits);
+
+  // Extract interfaces
+  extractInterfaces(content, units, seenUnits);
+
+  // Extract enums
+  extractEnums(content, units, seenUnits);
+
+  // Extract type aliases
+  extractTypeAliases(content, units, seenUnits);
 
   // Sort by line number
   units.sort((a, b) => a.lineStart - b.lineStart);
@@ -289,4 +316,153 @@ function extractClassMethods(
   }
 
   return methods;
+}
+
+function extractInterfaces(
+  content: string,
+  units: CodeUnitDeclaration[],
+  seenUnits: Set<string>,
+): void {
+  const pattern = new RegExp(PATTERNS.interfaceDeclaration.source, 'g');
+  let match;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (isInsideStringOrComment(content, match.index)) continue;
+
+    const name = match[2];
+    if (RESERVED_KEYWORDS.has(name) || seenUnits.has(`interface:${name}`)) continue;
+    seenUnits.add(`interface:${name}`);
+
+    const isExported = !!match[1];
+    const extendsClause = match[3]?.trim() || undefined;
+    const lineStart = getLineNumber(content, match.index);
+    const lineEnd = findBlockEnd(content, match.index + match[0].length - 1);
+
+    const signature = extendsClause ? `extends ${extendsClause}` : undefined;
+
+    units.push({
+      name,
+      unitType: CodeUnitType.INTERFACE,
+      lineStart,
+      lineEnd,
+      signature,
+      isAsync: false,
+      isExported,
+    });
+  }
+}
+
+function extractEnums(
+  content: string,
+  units: CodeUnitDeclaration[],
+  seenUnits: Set<string>,
+): void {
+  const pattern = new RegExp(PATTERNS.enumDeclaration.source, 'g');
+  let match;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (isInsideStringOrComment(content, match.index)) continue;
+
+    const name = match[3];
+    if (RESERVED_KEYWORDS.has(name) || seenUnits.has(`enum:${name}`)) continue;
+    seenUnits.add(`enum:${name}`);
+
+    const isExported = !!match[1];
+    const lineStart = getLineNumber(content, match.index);
+    const braceStart = match.index + match[0].length - 1;
+    const lineEnd = findBlockEnd(content, braceStart);
+
+    // Extract member names from block content for signature
+    const blockEndIndex = findBlockEndIndex(content, braceStart);
+    let signature: string | undefined;
+    if (blockEndIndex !== -1) {
+      const blockContent = content.slice(braceStart + 1, blockEndIndex);
+      const memberNames = blockContent
+        .split(/[,\n]/)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => line.split(/[\s=]/)[0])
+        .filter((name) => name.length > 0);
+      if (memberNames.length > 0) {
+        signature = `{ ${memberNames.join(', ')} }`;
+      }
+    }
+
+    units.push({
+      name,
+      unitType: CodeUnitType.ENUM,
+      lineStart,
+      lineEnd,
+      signature,
+      isAsync: false,
+      isExported,
+    });
+  }
+}
+
+/**
+ * Find the terminating semicolon of a type alias, skipping semicolons inside braces.
+ */
+function findTypeAliasEnd(content: string, startIndex: number): number {
+  let depth = 0;
+  for (let i = startIndex; i < content.length; i++) {
+    const char = content[i];
+    if (char === '{' || char === '(') {
+      depth++;
+    } else if (char === '}' || char === ')') {
+      depth--;
+    } else if (char === ';' && depth === 0) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function extractTypeAliases(
+  content: string,
+  units: CodeUnitDeclaration[],
+  seenUnits: Set<string>,
+): void {
+  const pattern = new RegExp(PATTERNS.typeAlias.source, 'g');
+  let match;
+
+  while ((match = pattern.exec(content)) !== null) {
+    if (isInsideStringOrComment(content, match.index)) continue;
+
+    const name = match[2];
+    if (RESERVED_KEYWORDS.has(name) || seenUnits.has(`type:${name}`)) continue;
+    seenUnits.add(`type:${name}`);
+
+    const isExported = !!match[1];
+    const lineStart = getLineNumber(content, match.index);
+
+    // Find the end of the type alias by looking for `;` outside braces
+    const equalsIndex = match.index + match[0].length;
+    const terminatorIndex = findTypeAliasEnd(content, equalsIndex);
+    const lineEnd = terminatorIndex !== -1
+      ? getLineNumber(content, terminatorIndex)
+      : lineStart;
+
+    // Extract the RHS as signature
+    let rhs: string | undefined;
+    if (terminatorIndex !== -1) {
+      rhs = content.slice(equalsIndex, terminatorIndex).trim();
+    } else {
+      // No semicolon found, take to end of line
+      const eolIndex = content.indexOf('\n', equalsIndex);
+      rhs = content.slice(equalsIndex, eolIndex !== -1 ? eolIndex : undefined).trim();
+    }
+
+    const signature = rhs && rhs.length > 100 ? rhs.slice(0, 100) : rhs || undefined;
+
+    units.push({
+      name,
+      unitType: CodeUnitType.TYPE_ALIAS,
+      lineStart,
+      lineEnd,
+      signature,
+      isAsync: false,
+      isExported,
+    });
+  }
 }

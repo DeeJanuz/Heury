@@ -12,6 +12,7 @@ export enum CodeUnitType {
   INTERFACE = 'INTERFACE',
   ENUM = 'ENUM',
   IMPL_BLOCK = 'IMPL_BLOCK',
+  TYPE_ALIAS = 'TYPE_ALIAS',
 }
 
 export interface CodeUnit {

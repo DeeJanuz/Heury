@@ -296,6 +296,172 @@ describe('extractCodeUnits', () => {
     });
   });
 
+  describe('interface declarations', () => {
+    it('should extract an exported interface', () => {
+      const code = [
+        'export interface UserData {',
+        '  id: string;',
+        '  name: string;',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('UserData');
+      expect(units[0].unitType).toBe(CodeUnitType.INTERFACE);
+      expect(units[0].isExported).toBe(true);
+      expect(units[0].isAsync).toBe(false);
+      expect(units[0].lineStart).toBe(1);
+      expect(units[0].lineEnd).toBe(4);
+    });
+
+    it('should extract a non-exported interface', () => {
+      const code = [
+        'interface InternalConfig {',
+        '  debug: boolean;',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('InternalConfig');
+      expect(units[0].isExported).toBe(false);
+    });
+
+    it('should extract interface with extends clause in signature', () => {
+      const code = [
+        'export interface Admin extends User, Serializable {',
+        '  role: string;',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Admin');
+      expect(units[0].signature).toContain('extends User, Serializable');
+    });
+
+    it('should not extract interface inside a comment', () => {
+      const code = [
+        '// interface FakeInterface {',
+        '//   id: string;',
+        '// }',
+        'interface RealInterface {',
+        '  name: string;',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('RealInterface');
+    });
+  });
+
+  describe('enum declarations', () => {
+    it('should extract a regular enum with variant names in signature', () => {
+      const code = [
+        'export enum Status {',
+        '  Active,',
+        '  Inactive,',
+        '  Pending,',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Status');
+      expect(units[0].unitType).toBe(CodeUnitType.ENUM);
+      expect(units[0].isExported).toBe(true);
+      expect(units[0].isAsync).toBe(false);
+      expect(units[0].signature).toBe('{ Active, Inactive, Pending }');
+    });
+
+    it('should extract a const enum', () => {
+      const code = [
+        'const enum Direction {',
+        '  Up = "UP",',
+        '  Down = "DOWN",',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Direction');
+      expect(units[0].unitType).toBe(CodeUnitType.ENUM);
+      expect(units[0].isExported).toBe(false);
+      expect(units[0].signature).toBe('{ Up, Down }');
+    });
+
+    it('should extract an exported const enum', () => {
+      const code = [
+        'export const enum Color {',
+        '  Red,',
+        '  Green,',
+        '  Blue,',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Color');
+      expect(units[0].isExported).toBe(true);
+    });
+
+    it('should not extract enum inside a comment', () => {
+      const code = [
+        '/* enum FakeEnum { A, B } */',
+        'enum RealEnum {',
+        '  X,',
+        '  Y,',
+        '}',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('RealEnum');
+    });
+  });
+
+  describe('type alias declarations', () => {
+    it('should extract an exported type alias (simple union)', () => {
+      const code = "export type Status = 'active' | 'inactive' | 'pending';";
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Status');
+      expect(units[0].unitType).toBe(CodeUnitType.TYPE_ALIAS);
+      expect(units[0].isExported).toBe(true);
+      expect(units[0].isAsync).toBe(false);
+      expect(units[0].signature).toContain("'active' | 'inactive' | 'pending'");
+    });
+
+    it('should extract a type alias with generics', () => {
+      const code = 'export type Result<T> = { success: true; data: T } | { success: false; error: Error };';
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('Result');
+      expect(units[0].unitType).toBe(CodeUnitType.TYPE_ALIAS);
+      expect(units[0].signature).toContain('{ success: true; data: T }');
+    });
+
+    it('should extract a non-exported type alias', () => {
+      const code = 'type ID = string | number;';
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('ID');
+      expect(units[0].isExported).toBe(false);
+    });
+
+    it('should truncate long type alias signatures to 100 chars', () => {
+      const longType = 'A'.repeat(120);
+      const code = `type LongType = ${longType};`;
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].signature!.length).toBeLessThanOrEqual(100);
+    });
+
+    it('should not extract type alias inside a comment', () => {
+      const code = [
+        '// type FakeType = string;',
+        'type RealType = number;',
+      ].join('\n');
+      const units = extractCodeUnits(code, 'test.ts');
+      expect(units).toHaveLength(1);
+      expect(units[0].name).toBe('RealType');
+    });
+  });
+
   describe('edge cases', () => {
     it('should return empty array for non-JS/TS files', () => {
       const code = 'def foo():\n    return 1';

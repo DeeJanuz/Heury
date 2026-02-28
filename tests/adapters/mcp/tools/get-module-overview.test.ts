@@ -36,6 +36,30 @@ describe('get-module-overview tool', () => {
     expect(tsFile.code_units).toHaveLength(2);
   });
 
+  it('should include signature in code unit entries when present', async () => {
+    codeUnitRepo.save(createCodeUnit({
+      filePath: 'src/a.ts', name: 'fnSig', unitType: CodeUnitType.FUNCTION,
+      lineStart: 30, lineEnd: 40, isAsync: false, isExported: true, language: 'typescript',
+      signature: 'function fnSig(): void',
+    }));
+
+    const result = await handler({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    const tsFile = parsed.data.find((f: { file_path: string }) => f.file_path === 'src/a.ts');
+    const sigUnit = tsFile.code_units.find((u: { name: string }) => u.name === 'fnSig');
+    expect(sigUnit.signature).toBe('function fnSig(): void');
+  });
+
+  it('should omit signature in code unit entries when not present', async () => {
+    const result = await handler({});
+    const parsed = JSON.parse(result.content[0].text);
+
+    const tsFile = parsed.data.find((f: { file_path: string }) => f.file_path === 'src/a.ts');
+    const unitWithoutSig = tsFile.code_units.find((u: { name: string }) => u.name === 'fnA');
+    expect(unitWithoutSig).not.toHaveProperty('signature');
+  });
+
   it('should filter by language', async () => {
     const result = await handler({ language: 'python' });
     const parsed = JSON.parse(result.content[0].text);

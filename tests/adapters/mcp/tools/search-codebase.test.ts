@@ -45,6 +45,29 @@ describe('search-codebase tool', () => {
     expect(parsed.data[0].filePath).toContain('profile');
   });
 
+  it('should include signature in search results when present', async () => {
+    codeUnitRepo.save(createCodeUnit({
+      id: 'unit-3',
+      filePath: 'src/utils/helper.ts', name: 'helperFn', unitType: CodeUnitType.FUNCTION,
+      lineStart: 1, lineEnd: 10, isAsync: false, isExported: true, language: 'typescript',
+      signature: 'function helperFn(a: string, b: number): boolean',
+    }));
+
+    const result = await handler({ query: 'helper' });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].signature).toBe('function helperFn(a: string, b: number): boolean');
+  });
+
+  it('should omit signature in search results when not present', async () => {
+    const result = await handler({ query: 'login' });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0]).not.toHaveProperty('signature');
+  });
+
   it('should return empty with context for no matches', async () => {
     const result = await handler({ query: 'nonexistent' });
     const parsed = JSON.parse(result.content[0].text);

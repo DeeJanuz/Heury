@@ -53,6 +53,28 @@ describe('get-code-units tool', () => {
     expect(parsed.data[0].name).toBe('ClassB');
   });
 
+  it('should include signature in compact format when present', async () => {
+    codeUnitRepo.save(createCodeUnit({
+      filePath: 'src/d.ts', name: 'fnD', unitType: CodeUnitType.FUNCTION,
+      lineStart: 1, lineEnd: 5, isAsync: false, isExported: true, language: 'typescript',
+      signature: 'function fnD(x: number): string',
+    }));
+
+    const result = await handler({ name: 'fnD', format: 'compact' });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0].signature).toBe('function fnD(x: number): string');
+  });
+
+  it('should omit signature in compact format when not present', async () => {
+    const result = await handler({ name: 'fnA', format: 'compact' });
+    const parsed = JSON.parse(result.content[0].text);
+
+    expect(parsed.data).toHaveLength(1);
+    expect(parsed.data[0]).not.toHaveProperty('signature');
+  });
+
   it('should return compact vs full format', async () => {
     const compactResult = await handler({ format: 'compact' });
     const fullResult = await handler({ format: 'full' });

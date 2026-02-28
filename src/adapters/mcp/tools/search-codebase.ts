@@ -62,6 +62,7 @@ export function createSearchCodebaseTool(deps: Dependencies): {
       lineStart: u.lineStart,
       lineEnd: u.lineEnd,
       language: u.language,
+      signature: u.signature,
     }));
 
     if (data.length === 0) {

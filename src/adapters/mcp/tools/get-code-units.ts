@@ -22,6 +22,7 @@ function toCompact(unit: CodeUnit): Record<string, unknown> {
     lineEnd: unit.lineEnd,
     isExported: unit.isExported,
     language: unit.language,
+    signature: unit.signature,
   };
 }
 

@@ -59,10 +59,11 @@ function groupByFilePath(units: CodeUnit[]): Map<string, CodeUnit[]> {
 function formatCodeUnit(unit: CodeUnit, prefix: string): string {
   const typeName = formatType(unit.unitType);
   const asyncLabel = unit.isAsync ? 'async ' : '';
+  const signatureLabel = unit.isExported && unit.signature ? unit.signature : '';
   const complexityLabel =
     unit.complexityScore > 0 ? `, complexity: ${unit.complexityScore}` : '';
 
-  return `${prefix}\`${unit.name}\` - ${asyncLabel}${typeName}${complexityLabel}`;
+  return `${prefix}\`${unit.name}\` - ${asyncLabel}${typeName}${signatureLabel}${complexityLabel}`;
 }
 
 function formatType(unitType: CodeUnitType): string {
@@ -84,6 +85,8 @@ function formatType(unitType: CodeUnitType): string {
       return 'enum';
     case CodeUnitType.IMPL_BLOCK:
       return 'impl';
+    case CodeUnitType.TYPE_ALIAS:
+      return 'type';
     case CodeUnitType.MODULE:
       return 'module';
     default:

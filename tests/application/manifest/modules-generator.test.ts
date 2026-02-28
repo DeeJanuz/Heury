@@ -135,6 +135,28 @@ describe('generateModulesManifest', () => {
     expect(methodIndent).toBeGreaterThan(classIndent);
   });
 
+  it('should format TYPE_ALIAS units as "type"', () => {
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/types.ts',
+        name: 'UserID',
+        unitType: CodeUnitType.TYPE_ALIAS,
+        lineStart: 1,
+        lineEnd: 1,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 0,
+        signature: 'string | number',
+      }),
+    );
+
+    const result = generateModulesManifest(repo, 5000);
+
+    expect(result).toContain('`UserID` - type');
+    expect(result).toContain('string | number');
+  });
+
   it('should handle empty repository', () => {
     const result = generateModulesManifest(repo, 5000);
 
@@ -173,6 +195,72 @@ describe('generateModulesManifest', () => {
 
     expect(result).toContain('API_ENDPOINT');
     expect(result).toContain('DATABASE_READ');
+  });
+
+  it('should include signature for exported units that have signatures', () => {
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/api/handler.ts',
+        name: 'fetchUser',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 20,
+        isAsync: true,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 5,
+        signature: '(userId: string): Promise<User>',
+      }),
+    );
+
+    const result = generateModulesManifest(repo, 5000);
+
+    expect(result).toContain(
+      '`fetchUser` - async function(userId: string): Promise<User>, complexity: 5',
+    );
+  });
+
+  it('should not include signature for non-exported units even if they have one', () => {
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/internal/helper.ts',
+        name: 'internalHelper',
+        unitType: CodeUnitType.FUNCTION,
+        lineStart: 1,
+        lineEnd: 10,
+        isAsync: false,
+        isExported: false,
+        language: 'typescript',
+        complexityScore: 2,
+        signature: '(x: number): number',
+      }),
+    );
+
+    const result = generateModulesManifest(repo, 5000);
+
+    expect(result).toContain('`internalHelper` - function, complexity: 2');
+    expect(result).not.toContain('(x: number): number');
+  });
+
+  it('should handle exported units with no signature gracefully', () => {
+    repo.save(
+      createCodeUnit({
+        filePath: 'src/config.ts',
+        name: 'AppConfig',
+        unitType: CodeUnitType.CLASS,
+        lineStart: 1,
+        lineEnd: 30,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 0,
+      }),
+    );
+
+    const result = generateModulesManifest(repo, 5000);
+
+    expect(result).toContain('`AppConfig` - class');
+    expect(result).not.toContain('undefined');
   });
 
   it('should respect token budget', () => {

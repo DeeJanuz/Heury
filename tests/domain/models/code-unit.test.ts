@@ -18,11 +18,12 @@ describe('CodeUnitType enum', () => {
     expect(CodeUnitType.INTERFACE).toBe('INTERFACE');
     expect(CodeUnitType.ENUM).toBe('ENUM');
     expect(CodeUnitType.IMPL_BLOCK).toBe('IMPL_BLOCK');
+    expect(CodeUnitType.TYPE_ALIAS).toBe('TYPE_ALIAS');
   });
 
-  it('should have exactly 10 members', () => {
+  it('should have exactly 11 members', () => {
     const values = Object.values(CodeUnitType);
-    expect(values).toHaveLength(10);
+    expect(values).toHaveLength(11);
   });
 });
 

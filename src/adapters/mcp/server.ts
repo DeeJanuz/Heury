@@ -41,22 +41,22 @@ export function createMcpServer(deps: McpServerDependencies): Server {
       instructions: `Heury: local codebase analysis for LLM discovery.
 
 Optimized hybrid workflow:
-1. ORIENT: Read .heury/MODULES.md, PATTERNS.md, DEPENDENCIES.md, HOTSPOTS.md (~5K tokens total) for instant codebase understanding
-2. TARGET: Use get_code_units or search_codebase to find specific functions/classes relevant to your task
-3. READ: Use get_file_content to read the actual source code of files you need
+1. ORIENT: Read .heury/MODULES.md, PATTERNS.md, DEPENDENCIES.md, HOTSPOTS.md (~5K tokens total) for instant codebase understanding. MODULES.md includes function signatures for exported units.
+2. TARGET: Use get_code_units (is_exported: true) or search_codebase to find specific functions/classes. Compact format includes signatures — often enough to understand contracts without reading source.
+3. READ: Use get_file_content only when you need implementation details beyond the signature
 4. VERIFY: Use get_dependencies to understand import relationships
 
 Quick reference:
 - get_analysis_stats: High-level stats (code units, files, languages, patterns)
-- get_module_overview: All files with their code units listed
-- search_codebase: Search by name, file path, or pattern value
-- get_code_units: Filter by file, type, language, complexity, export status
+- get_module_overview: All files with their code units and signatures
+- search_codebase: Search by name, file path, or pattern value (includes signatures)
+- get_code_units: Filter by file, type, language, complexity, export status. Use is_exported: true for public API discovery.
 - get_dependencies: Import graph filtered by source or target file
 - get_api_endpoints: API routes with HTTP methods and handler locations
 - get_file_content: Read source files with optional line ranges
 - vector_search: Semantic similarity search across code units
 
-Token tips: Start with manifests (free orientation). Use get_analysis_stats before get_module_overview. Filter with specific params rather than fetching all.`,
+Token tips: Start with manifests (free orientation). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
   );
 

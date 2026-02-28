@@ -36,7 +36,7 @@ export function createGetModuleOverviewTool(deps: Dependencies): {
     }
 
     // Group by file path
-    const fileMap = new Map<string, Array<{ name: string; unitType: string; isExported: boolean; lineStart: number; lineEnd: number }>>();
+    const fileMap = new Map<string, Array<{ name: string; unitType: string; isExported: boolean; lineStart: number; lineEnd: number; signature?: string }>>();
     for (const unit of units) {
       if (!fileMap.has(unit.filePath)) {
         fileMap.set(unit.filePath, []);
@@ -47,6 +47,7 @@ export function createGetModuleOverviewTool(deps: Dependencies): {
         isExported: unit.isExported,
         lineStart: unit.lineStart,
         lineEnd: unit.lineEnd,
+        signature: unit.signature,
       });
     }
 
