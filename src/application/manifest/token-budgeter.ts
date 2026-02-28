@@ -8,6 +8,7 @@ export interface TokenBudget {
   readonly patterns: number;
   readonly dependencies: number;
   readonly hotspots: number;
+  readonly schema: number;
 }
 
 const CHARS_PER_TOKEN = 4;
@@ -20,15 +21,16 @@ export function estimateTokens(text: string): number {
 }
 
 /**
- * Allocate token budget across 4 manifest files.
- * Split: modules 30%, patterns 30%, dependencies 20%, hotspots 20%.
+ * Allocate token budget across 5 manifest files.
+ * Split: modules 25%, patterns 25%, dependencies 15%, hotspots 15%, schema 20%.
  */
 export function allocateBudget(totalTokens: number): TokenBudget {
   return {
-    modules: Math.floor(totalTokens * 0.3),
-    patterns: Math.floor(totalTokens * 0.3),
-    dependencies: Math.floor(totalTokens * 0.2),
-    hotspots: Math.floor(totalTokens * 0.2),
+    modules: Math.floor(totalTokens * 0.25),
+    patterns: Math.floor(totalTokens * 0.25),
+    dependencies: Math.floor(totalTokens * 0.15),
+    hotspots: Math.floor(totalTokens * 0.15),
+    schema: Math.floor(totalTokens * 0.2),
   };
 }
 

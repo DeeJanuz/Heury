@@ -111,4 +111,44 @@ function handler(req, res) {
       expect(pyResult.codeUnits[0].language).toBe('python');
     }
   });
+
+  it('should populate bodiesByUnitId with body text for each code unit', () => {
+    const content = `export function greet(name) {
+  return 'Hello ' + name;
+}
+
+export function farewell(name) {
+  return 'Goodbye ' + name;
+}`;
+    const result = processFile(content, 'src/greet.ts', jsExtractor);
+
+    expect(result.bodiesByUnitId).toBeDefined();
+    expect(result.bodiesByUnitId).toBeInstanceOf(Map);
+
+    // Each code unit should have a body entry
+    for (const unit of result.codeUnits) {
+      expect(result.bodiesByUnitId.has(unit.id)).toBe(true);
+      const body = result.bodiesByUnitId.get(unit.id)!;
+      expect(body.length).toBeGreaterThan(0);
+    }
+
+    // Verify specific content
+    const greetUnit = result.codeUnits.find(u => u.name === 'greet');
+    expect(greetUnit).toBeDefined();
+    const greetBody = result.bodiesByUnitId.get(greetUnit!.id)!;
+    expect(greetBody).toContain('Hello');
+
+    const farewellUnit = result.codeUnits.find(u => u.name === 'farewell');
+    expect(farewellUnit).toBeDefined();
+    const farewellBody = result.bodiesByUnitId.get(farewellUnit!.id)!;
+    expect(farewellBody).toContain('Goodbye');
+  });
+
+  it('should return empty bodiesByUnitId for empty file', () => {
+    const result = processFile('', 'src/empty.ts', jsExtractor);
+
+    expect(result.bodiesByUnitId).toBeDefined();
+    expect(result.bodiesByUnitId).toBeInstanceOf(Map);
+    expect(result.bodiesByUnitId.size).toBe(0);
+  });
 });

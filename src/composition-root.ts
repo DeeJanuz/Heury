@@ -10,6 +10,10 @@ import { DatabaseManager } from '@/adapters/storage/database.js';
 import { SqliteCodeUnitRepository } from '@/adapters/storage/sqlite-code-unit-repository.js';
 import { SqliteFileDependencyRepository } from '@/adapters/storage/sqlite-file-dependency-repository.js';
 import { SqliteEnvVariableRepository } from '@/adapters/storage/sqlite-env-variable-repository.js';
+import { SqliteFunctionCallRepository } from '@/adapters/storage/sqlite-function-call-repository.js';
+import { SqliteTypeFieldRepository } from '@/adapters/storage/sqlite-type-field-repository.js';
+import { SqliteEventFlowRepository } from '@/adapters/storage/sqlite-event-flow-repository.js';
+import { SqliteSchemaModelRepository } from '@/adapters/storage/sqlite-schema-model-repository.js';
 import { createLanguageRegistry } from '@/extraction/index.js';
 
 export interface CompositionResult {
@@ -32,6 +36,10 @@ export async function createCompositionRoot(
     envVarRepo: new SqliteEnvVariableRepository(db),
     fileSystem,
     languageRegistry: createLanguageRegistry(),
+    functionCallRepo: new SqliteFunctionCallRepository(db),
+    typeFieldRepo: new SqliteTypeFieldRepository(db),
+    eventFlowRepo: new SqliteEventFlowRepository(db),
+    schemaModelRepo: new SqliteSchemaModelRepository(db),
   };
 
   return { dependencies };

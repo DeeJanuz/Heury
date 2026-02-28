@@ -1,4 +1,4 @@
-import type { ICodeUnitRepository, IFileDependencyRepository } from '@/domain/ports/index.js';
+import type { ICodeUnitRepository, IFileDependencyRepository, ITypeFieldRepository } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { CodeUnitType, PatternType } from '@/domain/models/index.js';
 import { fitSections, type Section } from './token-budgeter.js';
@@ -20,6 +20,7 @@ export function generateModulesManifest(
   codeUnitRepo: ICodeUnitRepository,
   dependencyRepo: IFileDependencyRepository,
   maxTokens: number,
+  typeFieldRepo?: ITypeFieldRepository,
 ): string {
   const allUnits = codeUnitRepo.findAll();
   const fileGroups = groupByFilePath(allUnits);
@@ -27,7 +28,7 @@ export function generateModulesManifest(
   const sections: Section[] = [];
 
   for (const [filePath, units] of fileGroups) {
-    const content = buildFileSection(filePath, units);
+    const content = buildFileSection(filePath, units, typeFieldRepo);
     const score = scoreFile(units, filePath, dependencyRepo);
     sections.push({ content, score });
   }
@@ -35,7 +36,15 @@ export function generateModulesManifest(
   return fitSections('# Modules\n', sections, maxTokens);
 }
 
-function buildFileSection(filePath: string, units: CodeUnit[]): string {
+const TYPE_FIELD_UNIT_TYPES = new Set<CodeUnitType>([
+  CodeUnitType.CLASS,
+  CodeUnitType.INTERFACE,
+  CodeUnitType.TYPE_ALIAS,
+  CodeUnitType.STRUCT,
+  CodeUnitType.ENUM,
+]);
+
+function buildFileSection(filePath: string, units: CodeUnit[], typeFieldRepo?: ITypeFieldRepository): string {
   const lines: string[] = [];
   lines.push(`## ${filePath}`);
 
@@ -44,10 +53,12 @@ function buildFileSection(filePath: string, units: CodeUnit[]): string {
 
   for (const unit of topLevelUnits) {
     lines.push(formatCodeUnit(unit, '- '));
+    appendTypeFields(lines, unit, '  ', typeFieldRepo);
 
     const children = childUnits.filter((c) => c.parentUnitId === unit.id);
     for (const child of children) {
       lines.push(formatCodeUnit(child, '  - '));
+      appendTypeFields(lines, child, '    ', typeFieldRepo);
     }
   }
 
@@ -58,6 +69,25 @@ function buildFileSection(filePath: string, units: CodeUnit[]): string {
 
   lines.push('');
   return lines.join('\n');
+}
+
+function appendTypeFields(
+  lines: string[],
+  unit: CodeUnit,
+  indent: string,
+  typeFieldRepo?: ITypeFieldRepository,
+): void {
+  if (!typeFieldRepo || !TYPE_FIELD_UNIT_TYPES.has(unit.unitType)) {
+    return;
+  }
+
+  const fields = typeFieldRepo.findByParentUnitId(unit.id);
+  for (const field of fields) {
+    const readonlyPrefix = field.isReadonly ? 'readonly ' : '';
+    const optionalSuffix = field.isOptional ? '?' : '';
+    const optionalFlag = field.isOptional ? ' (optional)' : '';
+    lines.push(`${indent}- ${readonlyPrefix}${field.name}${optionalSuffix}: ${field.fieldType}${optionalFlag}`);
+  }
 }
 
 function scoreFile(

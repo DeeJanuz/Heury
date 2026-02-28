@@ -57,6 +57,20 @@ export function validateConfig(config: unknown): config is HeuryConfig {
     );
   }
 
+  // Validate optional enrichment block
+  if (obj.enrichment !== undefined) {
+    if (typeof obj.enrichment !== 'object' || obj.enrichment === null) {
+      throw new Error('Config enrichment must be an object');
+    }
+    const enrichment = obj.enrichment as Record<string, unknown>;
+    const validProviders = ['anthropic', 'openai', 'gemini'];
+    if (!validProviders.includes(enrichment.provider as string)) {
+      throw new Error(
+        'Config enrichment.provider must be "anthropic", "openai", or "gemini"',
+      );
+    }
+  }
+
   return true;
 }
 
@@ -64,7 +78,7 @@ export function validateConfig(config: unknown): config is HeuryConfig {
  * Merges a partial config with DEFAULT_CONFIG, deep-merging the embedding object.
  */
 export function mergeWithDefaults(partial: Partial<HeuryConfig>): HeuryConfig {
-  return {
+  const config: HeuryConfig = {
     rootDir: partial.rootDir ?? DEFAULT_CONFIG.rootDir,
     outputDir: partial.outputDir ?? DEFAULT_CONFIG.outputDir,
     include: partial.include ?? DEFAULT_CONFIG.include,
@@ -74,4 +88,10 @@ export function mergeWithDefaults(partial: Partial<HeuryConfig>): HeuryConfig {
       ...partial.embedding,
     },
   };
+
+  if (partial.enrichment) {
+    config.enrichment = { ...partial.enrichment };
+  }
+
+  return config;
 }

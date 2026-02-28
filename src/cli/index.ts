@@ -23,6 +23,8 @@ program
   .description('Analyze the codebase')
   .option('-d, --dir <directory>', 'Project directory', '.')
   .option('--full', 'Force full re-analysis', false)
+  .option('--enrich', 'Enrich code units with LLM summaries', false)
+  .option('--enrich-force', 'Re-enrich all units even if summaries exist', false)
   .action((options) => analyzeCommand(options));
 
 program

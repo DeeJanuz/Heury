@@ -6,3 +6,7 @@ export { FakeEmbeddingProvider } from './fake-embedding-provider.js';
 export { FakeVectorSearchService } from './fake-vector-search-service.js';
 export { InMemoryFileSystem } from './fake-file-system.js';
 export { FakeConfigProvider } from './fake-config-provider.js';
+export { InMemoryFunctionCallRepository } from './fake-function-call-repository.js';
+export { InMemoryTypeFieldRepository } from './fake-type-field-repository.js';
+export { InMemoryEventFlowRepository } from './fake-event-flow-repository.js';
+export { InMemorySchemaModelRepository } from './fake-schema-model-repository.js';

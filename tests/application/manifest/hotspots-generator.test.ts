@@ -1,10 +1,14 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
 import { generateHotspotsManifest } from '@/application/manifest/hotspots-generator.js';
-import { InMemoryCodeUnitRepository } from '../../helpers/fakes/index.js';
+import {
+  InMemoryCodeUnitRepository,
+  InMemoryFunctionCallRepository,
+} from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
+  createFunctionCall,
   CodeUnitType,
   PatternType,
 } from '@/domain/models/index.js';
@@ -399,5 +403,156 @@ describe('generateHotspotsManifest', () => {
 
     const result = generateHotspotsManifest(repo, 50);
     expect(result.length).toBeLessThan(300);
+  });
+
+  describe('high fan-out functions', () => {
+    let functionCallRepo: InMemoryFunctionCallRepository;
+
+    beforeEach(() => {
+      functionCallRepo = new InMemoryFunctionCallRepository();
+    });
+
+    it('should show high fan-out functions when functionCallRepo is provided', () => {
+      repo.save(
+        createCodeUnit({
+          id: 'fanout-1',
+          filePath: 'src/services/order.ts',
+          name: 'processOrder',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 50,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      // Add 15 outgoing calls from processOrder
+      for (let i = 0; i < 15; i++) {
+        functionCallRepo.save(
+          createFunctionCall({
+            callerUnitId: 'fanout-1',
+            calleeName: `helper${i}`,
+            lineNumber: i + 2,
+            isAsync: false,
+          }),
+        );
+      }
+
+      const result = generateHotspotsManifest(repo, 5000, functionCallRepo);
+
+      expect(result).toContain('## High Fan-Out Functions');
+      expect(result).toContain('`processOrder` (src/services/order.ts) - 15 outgoing calls');
+    });
+
+    it('should show top 10 fan-out functions sorted by call count', () => {
+      // Create 12 functions with different call counts
+      for (let i = 0; i < 12; i++) {
+        const unitId = `fo-unit-${i}`;
+        repo.save(
+          createCodeUnit({
+            id: unitId,
+            filePath: `src/service-${i}.ts`,
+            name: `func${i}`,
+            unitType: CodeUnitType.FUNCTION,
+            lineStart: 1,
+            lineEnd: 20,
+            isAsync: false,
+            isExported: true,
+            language: 'typescript',
+            complexityScore: 1,
+          }),
+        );
+
+        // Give each function (i+1) outgoing calls
+        for (let j = 0; j <= i; j++) {
+          functionCallRepo.save(
+            createFunctionCall({
+              callerUnitId: unitId,
+              calleeName: `callee${j}`,
+              lineNumber: j + 2,
+              isAsync: false,
+            }),
+          );
+        }
+      }
+
+      const result = generateHotspotsManifest(repo, 5000, functionCallRepo);
+
+      expect(result).toContain('## High Fan-Out Functions');
+      // func11 has 12 calls, should be first
+      expect(result).toContain('`func11`');
+      // func0 has 1 call, should not be in top 10 (12 functions, only top 10 shown)
+      // func0 and func1 should be excluded
+      const fanOutSection = result.slice(result.indexOf('## High Fan-Out Functions'));
+      expect(fanOutSection).not.toContain('`func0`');
+      expect(fanOutSection).not.toContain('`func1`');
+      // func11 (12 calls) should appear before func10 (11 calls)
+      expect(result.indexOf('func11')).toBeLessThan(result.indexOf('func10'));
+    });
+
+    it('should not show high fan-out section when no function calls exist', () => {
+      repo.save(
+        createCodeUnit({
+          id: 'no-calls',
+          filePath: 'src/simple.ts',
+          name: 'simple',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 5,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      const result = generateHotspotsManifest(repo, 5000, functionCallRepo);
+
+      expect(result).not.toContain('High Fan-Out');
+    });
+
+    it('should work without functionCallRepo (backward compat)', () => {
+      repo.save(
+        createCodeUnit({
+          filePath: 'src/compat.ts',
+          name: 'compatFunc',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 30,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 20,
+        }),
+      );
+
+      const result = generateHotspotsManifest(repo, 5000);
+
+      expect(result).toContain('# Hotspots');
+      expect(result).toContain('compatFunc');
+      expect(result).not.toContain('High Fan-Out');
+    });
+
+    it('should skip function calls whose code unit is not found', () => {
+      // Add calls for a unit that doesn't exist in repo
+      for (let i = 0; i < 5; i++) {
+        functionCallRepo.save(
+          createFunctionCall({
+            callerUnitId: 'ghost-unit',
+            calleeName: `callee${i}`,
+            lineNumber: i + 1,
+            isAsync: false,
+          }),
+        );
+      }
+
+      const result = generateHotspotsManifest(repo, 5000, functionCallRepo);
+
+      // Should not crash and should not show a fan-out entry for the missing unit
+      expect(result).toContain('# Hotspots');
+      expect(result).not.toContain('High Fan-Out');
+    });
   });
 });

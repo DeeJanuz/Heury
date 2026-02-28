@@ -14,6 +14,11 @@ import type {
   IEnvVariableRepository,
   IFileSystem,
   IVectorSearchService,
+  IFunctionCallRepository,
+  ITypeFieldRepository,
+  IEventFlowRepository,
+  ISchemaModelRepository,
+  IUnitSummaryRepository,
 } from '@/domain/ports/index.js';
 import { ToolRegistry } from './tool-registry.js';
 import { createGetAnalysisStatsTool } from './tools/get-analysis-stats.js';
@@ -24,6 +29,10 @@ import { createGetDependenciesTool } from './tools/get-dependencies.js';
 import { createGetApiEndpointsTool } from './tools/get-api-endpoints.js';
 import { createGetFileContentTool } from './tools/get-file-content.js';
 import { createVectorSearchTool } from './tools/vector-search.js';
+import { createTraceCallChainTool } from './tools/trace-call-chain.js';
+import { createGetEventFlowTool } from './tools/get-event-flow.js';
+import { createGetDataModelsTool } from './tools/get-data-models.js';
+import { createGetFunctionContextTool } from './tools/get-function-context.js';
 
 export interface McpServerDependencies {
   codeUnitRepo: ICodeUnitRepository;
@@ -31,6 +40,12 @@ export interface McpServerDependencies {
   envVarRepo: IEnvVariableRepository;
   fileSystem: IFileSystem;
   vectorSearch?: IVectorSearchService;
+  // Deep analysis repos (optional)
+  functionCallRepo?: IFunctionCallRepository;
+  typeFieldRepo?: ITypeFieldRepository;
+  eventFlowRepo?: IEventFlowRepository;
+  schemaModelRepo?: ISchemaModelRepository;
+  unitSummaryRepo?: IUnitSummaryRepository;
 }
 
 export function createMcpServer(deps: McpServerDependencies): Server {
@@ -55,6 +70,10 @@ Quick reference:
 - get_api_endpoints: API routes with HTTP methods and handler locations
 - get_file_content: Read source files with optional line ranges
 - vector_search: Semantic similarity search across code units
+- trace_call_chain: Trace function call chains forward (callees) or backward (callers) with configurable depth
+- get_event_flow: Query event emissions and subscriptions by event name, direction, or framework
+- get_data_models: List schema/data models with their fields, types, and relations
+- get_function_context: Complete context for a function: signature, calls, callers, events, types, summary
 
 Token tips: Start with manifests (free orientation, relevance-ranked). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
@@ -77,6 +96,42 @@ Token tips: Start with manifests (free orientation, relevance-ranked). Use get_c
     createGetFileContentTool({ fileSystem: deps.fileSystem }),
     createVectorSearchTool({ vectorSearch: deps.vectorSearch }),
   ];
+
+  // Conditionally register deep analysis tools when their deps are available
+  if (deps.functionCallRepo) {
+    tools.push(
+      createTraceCallChainTool({
+        functionCallRepo: deps.functionCallRepo,
+        codeUnitRepo: deps.codeUnitRepo,
+      }),
+    );
+  }
+  if (deps.eventFlowRepo) {
+    tools.push(
+      createGetEventFlowTool({
+        eventFlowRepo: deps.eventFlowRepo,
+        codeUnitRepo: deps.codeUnitRepo,
+      }),
+    );
+  }
+  if (deps.schemaModelRepo) {
+    tools.push(
+      createGetDataModelsTool({
+        schemaModelRepo: deps.schemaModelRepo,
+      }),
+    );
+  }
+  if (deps.functionCallRepo && deps.typeFieldRepo && deps.eventFlowRepo) {
+    tools.push(
+      createGetFunctionContextTool({
+        codeUnitRepo: deps.codeUnitRepo,
+        functionCallRepo: deps.functionCallRepo,
+        typeFieldRepo: deps.typeFieldRepo,
+        eventFlowRepo: deps.eventFlowRepo,
+        unitSummaryRepo: deps.unitSummaryRepo,
+      }),
+    );
+  }
 
   for (const tool of tools) {
     registry.register(tool.definition, tool.handler);

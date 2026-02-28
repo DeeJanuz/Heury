@@ -6,3 +6,7 @@ export { createGetDependenciesTool } from './get-dependencies.js';
 export { createGetApiEndpointsTool } from './get-api-endpoints.js';
 export { createGetFileContentTool } from './get-file-content.js';
 export { createVectorSearchTool } from './vector-search.js';
+export { createTraceCallChainTool } from './trace-call-chain.js';
+export { createGetEventFlowTool } from './get-event-flow.js';
+export { createGetDataModelsTool } from './get-data-models.js';
+export { createGetFunctionContextTool } from './get-function-context.js';

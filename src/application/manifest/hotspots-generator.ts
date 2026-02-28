@@ -1,10 +1,11 @@
-import type { ICodeUnitRepository } from '@/domain/ports/index.js';
+import type { ICodeUnitRepository, IFunctionCallRepository } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { CodeUnitType } from '@/domain/models/index.js';
 import { fitSections } from './token-budgeter.js';
 import type { Section } from './token-budgeter.js';
 
 const MAX_COMPLEX_FUNCTIONS = 10;
+const MAX_FAN_OUT_FUNCTIONS = 10;
 
 const HEADER = '# Hotspots\n';
 
@@ -14,6 +15,7 @@ const HEADER = '# Hotspots\n';
 export function generateHotspotsManifest(
   codeUnitRepo: ICodeUnitRepository,
   maxTokens: number,
+  functionCallRepo?: IFunctionCallRepository,
 ): string {
   const allUnits = codeUnitRepo.findAll();
 
@@ -78,7 +80,54 @@ export function generateHotspotsManifest(
     sections.push({ content: lines.join('\n'), score: 1 });
   }
 
+  // High fan-out functions
+  if (functionCallRepo) {
+    const fanOutSection = buildFanOutSection(functionCallRepo, codeUnitRepo);
+    if (fanOutSection) {
+      sections.push(fanOutSection);
+    }
+  }
+
   return fitSections(HEADER, sections, maxTokens);
+}
+
+function buildFanOutSection(
+  functionCallRepo: IFunctionCallRepository,
+  codeUnitRepo: ICodeUnitRepository,
+): Section | undefined {
+  const allCalls = functionCallRepo.findAll();
+  if (allCalls.length === 0) {
+    return undefined;
+  }
+
+  // Group by callerUnitId and count
+  const callCounts = new Map<string, number>();
+  for (const call of allCalls) {
+    callCounts.set(call.callerUnitId, (callCounts.get(call.callerUnitId) ?? 0) + 1);
+  }
+
+  // Sort by count descending, take top 10
+  const topCallers = [...callCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, MAX_FAN_OUT_FUNCTIONS);
+
+  const lines: string[] = ['## High Fan-Out Functions'];
+  let entryCount = 0;
+
+  for (let i = 0; i < topCallers.length; i++) {
+    const [unitId, count] = topCallers[i];
+    const unit = codeUnitRepo.findById(unitId);
+    if (!unit) continue;
+    entryCount++;
+    lines.push(`${entryCount}. \`${unit.name}\` (${unit.filePath}) - ${count} outgoing calls`);
+  }
+
+  if (entryCount === 0) {
+    return undefined;
+  }
+
+  lines.push('');
+  return { content: lines.join('\n'), score: 1 };
 }
 
 function isCallable(unit: CodeUnit): boolean {

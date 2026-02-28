@@ -8,6 +8,12 @@ export interface HeuryConfig {
     model?: string;
     apiKey?: string;
   };
+  enrichment?: {
+    provider: 'anthropic' | 'openai' | 'gemini';
+    apiKey?: string;
+    model?: string;
+    baseUrl?: string;
+  };
 }
 
 export interface IConfigProvider {

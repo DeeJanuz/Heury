@@ -9,6 +9,10 @@ import {
   InMemoryFileDependencyRepository,
   InMemoryEnvVariableRepository,
   InMemoryFileSystem,
+  InMemoryFunctionCallRepository,
+  InMemoryTypeFieldRepository,
+  InMemoryEventFlowRepository,
+  InMemorySchemaModelRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(fileSystem: IFileSystem): AnalysisDependencies {
@@ -19,6 +23,27 @@ function createDeps(fileSystem: IFileSystem): AnalysisDependencies {
     fileSystem,
     languageRegistry: createLanguageRegistry(),
   };
+}
+
+function createDepsWithDeepAnalysis(fileSystem: IFileSystem) {
+  const functionCallRepo = new InMemoryFunctionCallRepository();
+  const typeFieldRepo = new InMemoryTypeFieldRepository();
+  const eventFlowRepo = new InMemoryEventFlowRepository();
+  const schemaModelRepo = new InMemorySchemaModelRepository();
+
+  const deps: AnalysisDependencies = {
+    codeUnitRepo: new InMemoryCodeUnitRepository(),
+    dependencyRepo: new InMemoryFileDependencyRepository(),
+    envVarRepo: new InMemoryEnvVariableRepository(),
+    fileSystem,
+    languageRegistry: createLanguageRegistry(),
+    functionCallRepo,
+    typeFieldRepo,
+    eventFlowRepo,
+    schemaModelRepo,
+  };
+
+  return { deps, functionCallRepo, typeFieldRepo, eventFlowRepo, schemaModelRepo };
 }
 
 function defaultOptions(rootDir = '/project'): AnalysisOptions {
@@ -396,6 +421,118 @@ export function compute() { return add(1, 2); }`);
 
       expect(result.success).toBe(true);
       expect(result.stats!.filesProcessed).toBe(1);
+    });
+  });
+
+  describe('deep analysis integration', () => {
+    it('should run deep analysis when deep repos are provided', async () => {
+      // File with a function that calls other functions
+      await fs.writeFile('/project/service.ts', `
+export function handleRequest() {
+  validate(input);
+  process(data);
+  emitter.emit('request-handled', result);
+}
+`);
+
+      const { deps, functionCallRepo, eventFlowRepo } = createDepsWithDeepAnalysis(fs);
+      const orchestrator = new AnalysisOrchestrator(deps);
+
+      const result = await orchestrator.analyze(defaultOptions());
+
+      expect(result.success).toBe(true);
+
+      // Function calls should have been extracted and stored
+      const calls = functionCallRepo.findAll();
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+
+      // Event flows should have been extracted and stored
+      const flows = eventFlowRepo.findAll();
+      expect(flows.length).toBeGreaterThanOrEqual(1);
+      expect(flows.some(f => f.eventName === 'request-handled')).toBe(true);
+    });
+
+    it('should NOT run deep analysis when deep repos are not provided (backward compat)', async () => {
+      const deps = createDeps(fs);
+      const orchestrator = new AnalysisOrchestrator(deps);
+
+      // This should work fine without deep repos — no errors
+      const result = await orchestrator.analyze(defaultOptions());
+
+      expect(result.success).toBe(true);
+      expect(result.stats!.filesProcessed).toBeGreaterThanOrEqual(2);
+    });
+
+    it('should extract type fields from interfaces when deep repos are provided', async () => {
+      await fs.writeFile('/project/types.ts', `
+export interface UserConfig {
+  readonly host: string;
+  port: number;
+  debug?: boolean;
+}
+`);
+
+      const { deps, typeFieldRepo } = createDepsWithDeepAnalysis(fs);
+      const orchestrator = new AnalysisOrchestrator(deps);
+
+      await orchestrator.analyze(defaultOptions());
+
+      const fields = typeFieldRepo.findAll();
+      expect(fields.length).toBeGreaterThanOrEqual(2);
+      expect(fields.some(f => f.name === 'host')).toBe(true);
+    });
+
+    it('should extract schema models from prisma files when deep repos are provided', async () => {
+      await fs.writeFile('/project/schema.prisma', `
+model User {
+  id    Int     @id @default(autoincrement())
+  email String  @unique
+  name  String?
+}
+`);
+
+      const { deps, schemaModelRepo } = createDepsWithDeepAnalysis(fs);
+      const orchestrator = new AnalysisOrchestrator(deps);
+
+      await orchestrator.analyze(defaultOptions());
+
+      const models = schemaModelRepo.findAll();
+      expect(models.length).toBe(1);
+      expect(models[0].name).toBe('User');
+      expect(models[0].framework).toBe('prisma');
+    });
+
+    it('should clear deep data for changed files during incremental analysis', async () => {
+      await fs.writeFile('/project/service.ts', `
+export function handleA() {
+  callOld();
+}
+`);
+
+      const { deps, functionCallRepo } = createDepsWithDeepAnalysis(fs);
+      const orchestrator = new AnalysisOrchestrator(deps);
+
+      // Full analysis
+      await orchestrator.analyze(defaultOptions());
+      const callsBefore = functionCallRepo.findAll();
+      expect(callsBefore.some(c => c.calleeName === 'callOld')).toBe(true);
+
+      // Update file and run incremental
+      await fs.writeFile('/project/service.ts', `
+export function handleB() {
+  callNew();
+}
+`);
+      await orchestrator.analyzeIncremental(
+        defaultOptions(),
+        ['/project/service.ts'],
+      );
+
+      const callsAfter = functionCallRepo.findAll();
+      // Old calls from handleA/callOld should be cleared
+      expect(callsAfter.some(c => c.calleeName === 'callOld')).toBe(false);
+      // New calls from handleB/callNew should be present
+      expect(callsAfter.some(c => c.calleeName === 'callNew')).toBe(true);
     });
   });
 });

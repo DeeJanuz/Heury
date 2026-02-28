@@ -21,28 +21,27 @@ describe('token-budgeter', () => {
   });
 
   describe('allocateBudget', () => {
-    it('should split 30/30/20/20 for default total', () => {
-      const budget = allocateBudget(5000);
-      expect(budget.modules).toBe(1500);
-      expect(budget.patterns).toBe(1500);
-      expect(budget.dependencies).toBe(1000);
-      expect(budget.hotspots).toBe(1000);
-    });
-
-    it('should work with custom total budget', () => {
+    it('should split budget across 5 manifest files', () => {
       const budget = allocateBudget(10000);
-      expect(budget.modules).toBe(3000);
-      expect(budget.patterns).toBe(3000);
-      expect(budget.dependencies).toBe(2000);
-      expect(budget.hotspots).toBe(2000);
+      expect(budget.modules).toBe(2500);
+      expect(budget.patterns).toBe(2500);
+      expect(budget.dependencies).toBe(1500);
+      expect(budget.hotspots).toBe(1500);
+      expect(budget.schema).toBe(2000);
     });
 
     it('should floor fractional token counts', () => {
       const budget = allocateBudget(100);
-      expect(budget.modules).toBe(30);
-      expect(budget.patterns).toBe(30);
-      expect(budget.dependencies).toBe(20);
-      expect(budget.hotspots).toBe(20);
+      expect(budget.modules).toBe(25);
+      expect(budget.patterns).toBe(25);
+      expect(budget.dependencies).toBe(15);
+      expect(budget.hotspots).toBe(15);
+      expect(budget.schema).toBe(20);
+    });
+
+    it('should include schema in the budget', () => {
+      const budget = allocateBudget(5000);
+      expect(budget.schema).toBe(1000);
     });
   });
 

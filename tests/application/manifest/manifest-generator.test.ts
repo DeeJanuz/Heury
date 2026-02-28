@@ -7,12 +7,21 @@ import {
   InMemoryFileDependencyRepository,
   InMemoryEnvVariableRepository,
   InMemoryFileSystem,
+  InMemorySchemaModelRepository,
+  InMemoryTypeFieldRepository,
+  InMemoryEventFlowRepository,
+  InMemoryFunctionCallRepository,
 } from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
   createFileDependency,
   createEnvVariable,
+  createSchemaModel,
+  createSchemaModelField,
+  createTypeField,
+  createEventFlow,
+  createFunctionCall,
   CodeUnitType,
   PatternType,
   ImportType,
@@ -66,8 +75,8 @@ describe('generateManifests', () => {
     expect(modulesContent).toContain('main');
   });
 
-  it('should use default budget of 5000 tokens', async () => {
-    // Add enough data to potentially exceed budget
+  it('should include all sections with no token budget cap by default', async () => {
+    // Add enough data that would have been truncated under the old 5000-token budget
     const codeUnitRepo = deps.codeUnitRepo as InMemoryCodeUnitRepository;
     for (let i = 0; i < 100; i++) {
       codeUnitRepo.save(
@@ -97,6 +106,10 @@ describe('generateManifests', () => {
     expect(patterns.length).toBeGreaterThan(0);
     expect(dependencies.length).toBeGreaterThan(0);
     expect(hotspots.length).toBeGreaterThan(0);
+
+    // With Infinity budget, no sections should be omitted
+    expect(modules).not.toContain('more files available via MCP tools');
+    expect(hotspots).not.toContain('more files available via MCP tools');
   });
 
   it('should use custom budget when provided', async () => {
@@ -130,5 +143,101 @@ describe('generateManifests', () => {
     await generateManifests(deps, { outputDir: 'output/manifests' });
 
     expect(await fileSystem.exists('output/manifests/MODULES.md')).toBe(true);
+  });
+
+  it('should generate SCHEMA.md when schemaModelRepo is provided', async () => {
+    const schemaModelRepo = new InMemorySchemaModelRepository();
+    const modelId = 'test-model';
+    schemaModelRepo.save(
+      createSchemaModel({
+        id: modelId,
+        name: 'User',
+        filePath: 'prisma/schema.prisma',
+        framework: 'prisma',
+        tableName: 'users',
+        fields: [
+          createSchemaModelField({
+            modelId,
+            name: 'id',
+            fieldType: 'Int',
+            isPrimaryKey: true,
+            isRequired: true,
+            hasDefault: true,
+          }),
+          createSchemaModelField({
+            modelId,
+            name: 'email',
+            fieldType: 'String',
+            isRequired: true,
+            isUnique: true,
+          }),
+        ],
+      }),
+    );
+
+    const depsWithSchema: ManifestDependencies = {
+      ...deps,
+      schemaModelRepo,
+    };
+
+    await generateManifests(depsWithSchema, { outputDir: '.heury' });
+
+    expect(await fileSystem.exists('.heury/SCHEMA.md')).toBe(true);
+    const schemaContent = await fileSystem.readFile('.heury/SCHEMA.md');
+    expect(schemaContent).toContain('# Schema');
+    expect(schemaContent).toContain('User');
+  });
+
+  it('should not generate SCHEMA.md when schemaModelRepo is not provided', async () => {
+    await generateManifests(deps, { outputDir: '.heury' });
+
+    expect(await fileSystem.exists('.heury/SCHEMA.md')).toBe(false);
+  });
+
+  it('should pass deep repos through to sub-generators', async () => {
+    const typeFieldRepo = new InMemoryTypeFieldRepository();
+    const eventFlowRepo = new InMemoryEventFlowRepository();
+    const functionCallRepo = new InMemoryFunctionCallRepository();
+
+    const codeUnitRepo = deps.codeUnitRepo as InMemoryCodeUnitRepository;
+    const unitId = 'deep-unit-1';
+    codeUnitRepo.save(
+      createCodeUnit({
+        id: unitId,
+        filePath: 'src/models/item.ts',
+        name: 'Item',
+        unitType: CodeUnitType.INTERFACE,
+        lineStart: 1,
+        lineEnd: 10,
+        isAsync: false,
+        isExported: true,
+        language: 'typescript',
+        complexityScore: 0,
+      }),
+    );
+
+    // Add a type field that should appear in MODULES.md
+    typeFieldRepo.save(
+      createTypeField({
+        parentUnitId: unitId,
+        name: 'price',
+        fieldType: 'number',
+        isOptional: false,
+        isReadonly: false,
+        lineNumber: 2,
+      }),
+    );
+
+    const depsWithDeep: ManifestDependencies = {
+      ...deps,
+      typeFieldRepo,
+      eventFlowRepo,
+      functionCallRepo,
+    };
+
+    await generateManifests(depsWithDeep, { outputDir: '.heury' });
+
+    const modulesContent = await fileSystem.readFile('.heury/MODULES.md');
+    expect(modulesContent).toContain('price: number');
   });
 });

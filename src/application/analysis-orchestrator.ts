@@ -24,12 +24,17 @@ import type {
   ICodeUnitRepository,
   IFileDependencyRepository,
   IEnvVariableRepository,
+  IFunctionCallRepository,
+  ITypeFieldRepository,
+  IEventFlowRepository,
+  ISchemaModelRepository,
   IFileSystem,
 } from '@/domain/ports/index.js';
 import type { LanguageRegistry } from '@/extraction/language-registry.js';
 import { extractEnvVariables, isEnvExampleFile } from '@/extraction/env-extractor.js';
 import { shouldProcessFile, type FileFilterOptions } from './file-filter.js';
-import { processFile } from './file-processor.js';
+import { processFile, type FileProcessingResult } from './file-processor.js';
+import { processDeepAnalysis } from './deep-analysis-processor.js';
 
 export interface AnalysisOptions {
   readonly rootDir: string;
@@ -44,6 +49,11 @@ export interface AnalysisDependencies {
   readonly envVarRepo: IEnvVariableRepository;
   readonly fileSystem: IFileSystem;
   readonly languageRegistry: LanguageRegistry;
+  // Deep analysis (optional — if provided, deep analysis runs after file processing)
+  readonly functionCallRepo?: IFunctionCallRepository;
+  readonly typeFieldRepo?: ITypeFieldRepository;
+  readonly eventFlowRepo?: IEventFlowRepository;
+  readonly schemaModelRepo?: ISchemaModelRepository;
 }
 
 export class AnalysisOrchestrator {
@@ -143,6 +153,10 @@ export class AnalysisOrchestrator {
     let envVariablesFound = 0;
     let filesWithErrors = 0;
 
+    // Collect results for deep analysis
+    const allFileResults: FileProcessingResult[] = [];
+    const allFileContents = new Map<string, string>();
+
     for (const filePath of files) {
       const absolutePath = this.resolveFilePath(filePath, options.rootDir);
 
@@ -166,12 +180,26 @@ export class AnalysisOrchestrator {
       }
 
       // Filter code files
-      if (!shouldProcessFile(filePath, this.deps.languageRegistry, options.filterOpts)) {
+      const isCodeFile = shouldProcessFile(filePath, this.deps.languageRegistry, options.filterOpts);
+
+      if (!isCodeFile) {
+        // Non-code files may still contain schema definitions (e.g. .prisma files)
+        // Read their content for schema model extraction
+        if (this.hasDeepAnalysisDeps()) {
+          try {
+            const content = await this.deps.fileSystem.readFile(absolutePath);
+            allFileContents.set(filePath, content);
+          } catch {
+            // Ignore read errors for non-code files — schema extraction is best-effort
+          }
+        }
         continue;
       }
 
       // Clear old data for this file when doing incremental processing
       if (options.clearBeforeProcessing) {
+        // Clear deep data BEFORE code units — deep clearing needs the unit IDs
+        this.clearDeepDataForFile(filePath);
         this.deps.codeUnitRepo.deleteByFilePath(filePath);
         this.deps.dependencyRepo.deleteBySourceFile(filePath);
       }
@@ -182,11 +210,29 @@ export class AnalysisOrchestrator {
         codeUnitsExtracted += result.codeUnitsCount;
         patternsDetected += result.patternsCount;
         dependenciesFound += result.dependenciesCount;
+
+        // Collect for deep analysis
+        if (result.fileResult) {
+          allFileResults.push(result.fileResult);
+        }
+        if (result.content !== undefined) {
+          allFileContents.set(filePath, result.content);
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`Warning: Failed to process file '${filePath}': ${message}`);
         filesWithErrors++;
       }
+    }
+
+    // Run deep analysis if repositories are provided
+    if (this.hasDeepAnalysisDeps()) {
+      processDeepAnalysis(allFileResults, allFileContents, {
+        functionCallRepo: this.deps.functionCallRepo!,
+        typeFieldRepo: this.deps.typeFieldRepo!,
+        eventFlowRepo: this.deps.eventFlowRepo!,
+        schemaModelRepo: this.deps.schemaModelRepo!,
+      });
     }
 
     return {
@@ -199,10 +245,53 @@ export class AnalysisOrchestrator {
     };
   }
 
+  /**
+   * Check whether all deep analysis repositories have been provided.
+   */
+  private hasDeepAnalysisDeps(): boolean {
+    return !!(
+      this.deps.functionCallRepo &&
+      this.deps.typeFieldRepo &&
+      this.deps.eventFlowRepo &&
+      this.deps.schemaModelRepo
+    );
+  }
+
+  /**
+   * Clear deep analysis data for a file during incremental re-processing.
+   * Uses code units to find relevant unit IDs, then clears deep data by those IDs.
+   */
+  private clearDeepDataForFile(filePath: string): void {
+    if (!this.hasDeepAnalysisDeps()) return;
+
+    const units = this.deps.codeUnitRepo.findByFilePath(filePath);
+    for (const unit of units) {
+      this.clearDeepDataForUnit(unit);
+    }
+
+    // Schema models are indexed by filePath directly
+    this.deps.schemaModelRepo!.deleteByFilePath(filePath);
+  }
+
+  /**
+   * Clear deep analysis data for a single code unit and its children recursively.
+   */
+  private clearDeepDataForUnit(unit: { id: string; children: Array<{ id: string; children: Array<unknown> }> }): void {
+    this.deps.functionCallRepo!.deleteByCallerUnitId(unit.id);
+    this.deps.typeFieldRepo!.deleteByParentUnitId(unit.id);
+    this.deps.eventFlowRepo!.deleteByCodeUnitId(unit.id);
+
+    for (const child of unit.children) {
+      this.clearDeepDataForUnit(child as typeof unit);
+    }
+  }
+
   private async processOneFile(filePath: string, rootDir: string): Promise<{
     codeUnitsCount: number;
     patternsCount: number;
     dependenciesCount: number;
+    fileResult?: FileProcessingResult;
+    content?: string;
   }> {
     const extractor = this.deps.languageRegistry.getExtractorForFile(filePath);
     if (!extractor) {
@@ -236,6 +325,8 @@ export class AnalysisOrchestrator {
       codeUnitsCount: result.codeUnits.length,
       patternsCount,
       dependenciesCount: result.dependencies.length,
+      fileResult: result,
+      content,
     };
   }
 

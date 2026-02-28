@@ -38,6 +38,7 @@ function extractBody(
 /**
  * Build a CodeUnit from a declaration, generating the ID upfront so patterns
  * reference the correct codeUnitId without needing double creation.
+ * Populates bodiesByUnitId with the extracted body text for each unit.
  */
 function buildCodeUnit(
   decl: CodeUnitDeclaration,
@@ -47,9 +48,11 @@ function buildCodeUnit(
   extractor: LanguageExtractor,
   complexityPatterns: LanguageComplexityPatterns,
   patternRules: PatternRuleSet,
+  bodiesByUnitId: Map<string, string>,
 ): CodeUnit {
   const id = randomUUID();
   const body = extractBody(content, lines, decl);
+  bodiesByUnitId.set(id, body);
   const complexity = calculateComplexity(body, complexityPatterns, decl.signature);
   const complexityScore = calculateComplexityScore(complexity);
   const detectedPatterns = detectPatterns(body, patternRules, filePath);
@@ -65,7 +68,7 @@ function buildCodeUnit(
   );
 
   const children = (decl.children ?? []).map(child =>
-    buildCodeUnit(child, content, lines, filePath, extractor, complexityPatterns, patternRules),
+    buildCodeUnit(child, content, lines, filePath, extractor, complexityPatterns, patternRules, bodiesByUnitId),
   );
 
   return createCodeUnit({
@@ -91,6 +94,7 @@ export interface FileProcessingResult {
   readonly codeUnits: CodeUnit[];
   readonly dependencies: FileDependencyInfo[];
   readonly moduleLevelPatterns: DetectedPattern[];
+  readonly bodiesByUnitId: Map<string, string>;
 }
 
 /**
@@ -112,6 +116,7 @@ export function processFile(
       codeUnits: [],
       dependencies: [],
       moduleLevelPatterns: [],
+      bodiesByUnitId: new Map(),
     };
   }
 
@@ -124,9 +129,10 @@ export function processFile(
   // 2-4. For each declaration, build domain objects with correct IDs from the start
   const codeUnits: CodeUnit[] = [];
   const codeUnitLineRanges: Array<{ lineStart: number; lineEnd: number }> = [];
+  const bodiesByUnitId = new Map<string, string>();
 
   for (const decl of declarations) {
-    const unit = buildCodeUnit(decl, content, lines, filePath, extractor, complexityPatterns, patternRules);
+    const unit = buildCodeUnit(decl, content, lines, filePath, extractor, complexityPatterns, patternRules, bodiesByUnitId);
     codeUnits.push(unit);
     codeUnitLineRanges.push({ lineStart: decl.lineStart, lineEnd: decl.lineEnd });
   }
@@ -147,5 +153,6 @@ export function processFile(
     codeUnits,
     dependencies,
     moduleLevelPatterns,
+    bodiesByUnitId,
   };
 }

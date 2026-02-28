@@ -4,7 +4,7 @@ import { getComplexityLevel } from '@/domain/models/index.js';
 /**
  * Build a search-optimized text representation of a code unit for embedding.
  */
-export function buildEmbeddingText(unit: CodeUnit): string {
+export function buildEmbeddingText(unit: CodeUnit, summary?: string): string {
   const parts: string[] = [];
 
   // Name and location
@@ -29,6 +29,11 @@ export function buildEmbeddingText(unit: CodeUnit): string {
   // Complexity
   const level = getComplexityLevel(unit.complexityScore);
   parts.push(`Complexity: ${level} (score ${unit.complexityScore})`);
+
+  // LLM-generated summary
+  if (summary) {
+    parts.push(`Summary: ${summary}`);
+  }
 
   return parts.join('\n');
 }

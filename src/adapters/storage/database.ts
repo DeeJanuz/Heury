@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -32,8 +32,14 @@ export class DatabaseManager {
 
   private runMigrations(): void {
     const currentDir = dirname(fileURLToPath(import.meta.url));
-    const migrationPath = join(currentDir, 'migrations', '001-initial.sql');
-    const sql = readFileSync(migrationPath, 'utf-8');
-    this.db.exec(sql);
+    const migrationsDir = join(currentDir, 'migrations');
+    const migrationFiles = readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort();
+
+    for (const file of migrationFiles) {
+      const sql = readFileSync(join(migrationsDir, file), 'utf-8');
+      this.db.exec(sql);
+    }
   }
 }

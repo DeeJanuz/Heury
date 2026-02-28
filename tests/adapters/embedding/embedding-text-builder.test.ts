@@ -74,4 +74,22 @@ describe('buildEmbeddingText', () => {
     expect(text).not.toContain('Patterns:');
     expect(text).toContain('getUsers');
   });
+
+  it('includes summary when provided', () => {
+    const unit = makeUnit();
+    const text = buildEmbeddingText(unit, 'Retrieves all users from the database');
+    expect(text).toContain('Summary: Retrieves all users from the database');
+  });
+
+  it('does not include summary line when summary is undefined', () => {
+    const unit = makeUnit();
+    const text = buildEmbeddingText(unit);
+    expect(text).not.toContain('Summary:');
+  });
+
+  it('does not include summary line when summary is empty string', () => {
+    const unit = makeUnit();
+    const text = buildEmbeddingText(unit, '');
+    expect(text).not.toContain('Summary:');
+  });
 });

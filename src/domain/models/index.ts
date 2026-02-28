@@ -10,3 +10,8 @@ export {
   createEmptyMetrics,
   type ComplexityMetrics,
 } from './complexity-metrics.js';
+export { createFunctionCall, type FunctionCall } from './function-call.js';
+export { createTypeField, type TypeField } from './type-field.js';
+export { createEventFlow, type EventFlow } from './event-flow.js';
+export { createSchemaModel, createSchemaModelField, type SchemaModel, type SchemaModelField } from './schema-model.js';
+export { createUnitSummary, type UnitSummary } from './unit-summary.js';

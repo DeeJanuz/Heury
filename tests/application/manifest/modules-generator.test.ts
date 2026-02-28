@@ -4,11 +4,13 @@ import { generateModulesManifest } from '@/application/manifest/modules-generato
 import {
   InMemoryCodeUnitRepository,
   InMemoryFileDependencyRepository,
+  InMemoryTypeFieldRepository,
 } from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
   createFileDependency,
+  createTypeField,
   CodeUnitType,
   PatternType,
 } from '@/domain/models/index.js';
@@ -473,5 +475,245 @@ describe('generateModulesManifest', () => {
     const result2 = generateModulesManifest(repo, depRepo, 5000);
 
     expect(result1).toBe(result2);
+  });
+
+  describe('type fields integration', () => {
+    let typeFieldRepo: InMemoryTypeFieldRepository;
+
+    beforeEach(() => {
+      typeFieldRepo = new InMemoryTypeFieldRepository();
+    });
+
+    it('should show type fields inline under interfaces when typeFieldRepo is provided', () => {
+      const unitId = 'iface-1';
+      repo.save(
+        createCodeUnit({
+          id: unitId,
+          filePath: 'src/models/user.ts',
+          name: 'User',
+          unitType: CodeUnitType.INTERFACE,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 0,
+        }),
+      );
+
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: unitId,
+          name: 'id',
+          fieldType: 'string',
+          isOptional: false,
+          isReadonly: false,
+          lineNumber: 2,
+        }),
+      );
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: unitId,
+          name: 'email',
+          fieldType: 'string',
+          isOptional: false,
+          isReadonly: false,
+          lineNumber: 3,
+        }),
+      );
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: unitId,
+          name: 'name',
+          fieldType: 'string',
+          isOptional: true,
+          isReadonly: false,
+          lineNumber: 4,
+        }),
+      );
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: unitId,
+          name: 'createdAt',
+          fieldType: 'Date',
+          isOptional: false,
+          isReadonly: true,
+          lineNumber: 5,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000, typeFieldRepo);
+
+      expect(result).toContain('`User` - interface');
+      expect(result).toContain('  - id: string');
+      expect(result).toContain('  - email: string');
+      expect(result).toContain('  - name?: string (optional)');
+      expect(result).toContain('  - readonly createdAt: Date');
+    });
+
+    it('should show type fields under classes', () => {
+      const classId = 'class-tf-1';
+      repo.save(
+        createCodeUnit({
+          id: classId,
+          filePath: 'src/models/config.ts',
+          name: 'AppConfig',
+          unitType: CodeUnitType.CLASS,
+          lineStart: 1,
+          lineEnd: 20,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 0,
+        }),
+      );
+
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: classId,
+          name: 'port',
+          fieldType: 'number',
+          isOptional: false,
+          isReadonly: false,
+          lineNumber: 2,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000, typeFieldRepo);
+
+      expect(result).toContain('`AppConfig` - class');
+      expect(result).toContain('  - port: number');
+    });
+
+    it('should show type fields under type aliases, structs, and enums', () => {
+      const typeId = 'type-1';
+      repo.save(
+        createCodeUnit({
+          id: typeId,
+          filePath: 'src/types.ts',
+          name: 'Options',
+          unitType: CodeUnitType.TYPE_ALIAS,
+          lineStart: 1,
+          lineEnd: 5,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 0,
+        }),
+      );
+
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: typeId,
+          name: 'verbose',
+          fieldType: 'boolean',
+          isOptional: true,
+          isReadonly: false,
+          lineNumber: 2,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000, typeFieldRepo);
+
+      expect(result).toContain('`Options` - type');
+      expect(result).toContain('  - verbose?: boolean (optional)');
+    });
+
+    it('should not show type fields for functions or methods', () => {
+      const funcId = 'func-tf-1';
+      repo.save(
+        createCodeUnit({
+          id: funcId,
+          filePath: 'src/service.ts',
+          name: 'doWork',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+        }),
+      );
+
+      // Even if type fields exist for a function (shouldn't normally happen),
+      // they should not be rendered
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: funcId,
+          name: 'strayField',
+          fieldType: 'string',
+          isOptional: false,
+          isReadonly: false,
+          lineNumber: 2,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000, typeFieldRepo);
+
+      expect(result).toContain('`doWork` - function');
+      expect(result).not.toContain('strayField');
+    });
+
+    it('should work without typeFieldRepo (backward compat)', () => {
+      repo.save(
+        createCodeUnit({
+          id: 'compat-1',
+          filePath: 'src/compat.ts',
+          name: 'MyInterface',
+          unitType: CodeUnitType.INTERFACE,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 0,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000);
+
+      expect(result).toContain('`MyInterface` - interface');
+      // No type fields should appear since no repo was provided
+    });
+
+    it('should indent type fields deeper than the code unit', () => {
+      const unitId = 'indent-1';
+      repo.save(
+        createCodeUnit({
+          id: unitId,
+          filePath: 'src/models/test.ts',
+          name: 'TestType',
+          unitType: CodeUnitType.INTERFACE,
+          lineStart: 1,
+          lineEnd: 5,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 0,
+        }),
+      );
+
+      typeFieldRepo.save(
+        createTypeField({
+          parentUnitId: unitId,
+          name: 'value',
+          fieldType: 'number',
+          isOptional: false,
+          isReadonly: false,
+          lineNumber: 2,
+        }),
+      );
+
+      const result = generateModulesManifest(repo, depRepo, 5000, typeFieldRepo);
+
+      const unitLine = result.split('\n').find((l) => l.includes('TestType'));
+      const fieldLine = result.split('\n').find((l) => l.includes('value: number'));
+      expect(unitLine).toBeDefined();
+      expect(fieldLine).toBeDefined();
+      const unitIndent = unitLine!.search(/\S/);
+      const fieldIndent = fieldLine!.search(/\S/);
+      expect(fieldIndent).toBeGreaterThan(unitIndent);
+    });
   });
 });

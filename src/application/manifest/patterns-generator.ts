@@ -1,5 +1,5 @@
-import type { ICodeUnitRepository, IEnvVariableRepository } from '@/domain/ports/index.js';
-import type { CodeUnit, CodeUnitPattern } from '@/domain/models/index.js';
+import type { ICodeUnitRepository, IEnvVariableRepository, IEventFlowRepository } from '@/domain/ports/index.js';
+import type { CodeUnit, CodeUnitPattern, EventFlow } from '@/domain/models/index.js';
 import { PatternType } from '@/domain/models/index.js';
 import { fitSections, type Section } from './token-budgeter.js';
 
@@ -16,6 +16,7 @@ export function generatePatternsManifest(
   codeUnitRepo: ICodeUnitRepository,
   envVarRepo: IEnvVariableRepository,
   maxTokens: number,
+  eventFlowRepo?: IEventFlowRepository,
 ): string {
   const allUnits = codeUnitRepo.findAll();
   const patternsByType = groupPatternsByType(allUnits);
@@ -92,7 +93,64 @@ export function generatePatternsManifest(
     sections.push({ content: lines.join('\n'), score: envVars.length });
   }
 
+  // Event Flows
+  if (eventFlowRepo) {
+    const eventFlowSection = buildEventFlowSection(eventFlowRepo, codeUnitRepo);
+    if (eventFlowSection) {
+      sections.push(eventFlowSection);
+    }
+  }
+
   return fitSections('# Patterns\n\n', sections, maxTokens);
+}
+
+function buildEventFlowSection(
+  eventFlowRepo: IEventFlowRepository,
+  codeUnitRepo: ICodeUnitRepository,
+): Section | undefined {
+  const allFlows = eventFlowRepo.findAll();
+  if (allFlows.length === 0) {
+    return undefined;
+  }
+
+  const emitters: EventFlow[] = [];
+  const subscribers: EventFlow[] = [];
+
+  for (const flow of allFlows) {
+    if (flow.direction === 'emit') {
+      emitters.push(flow);
+    } else {
+      subscribers.push(flow);
+    }
+  }
+
+  const lines: string[] = ['## Event Flows'];
+
+  if (emitters.length > 0) {
+    lines.push('### Emitters');
+    for (const flow of emitters) {
+      const unit = codeUnitRepo.findById(flow.codeUnitId);
+      if (!unit) continue;
+      lines.push(`- \`${flow.eventName}\` (${flow.framework}) - ${unit.filePath}:${unit.name}`);
+    }
+  }
+
+  if (subscribers.length > 0) {
+    lines.push('### Subscribers');
+    for (const flow of subscribers) {
+      const unit = codeUnitRepo.findById(flow.codeUnitId);
+      if (!unit) continue;
+      lines.push(`- \`${flow.eventName}\` (${flow.framework}) - ${unit.filePath}:${unit.name}`);
+    }
+  }
+
+  // If all flows referenced unknown units, we may have only the header
+  if (lines.length <= 1) {
+    return undefined;
+  }
+
+  lines.push('');
+  return { content: lines.join('\n'), score: allFlows.length };
 }
 
 function groupPatternsByType(units: CodeUnit[]): Map<PatternType, PatternEntry[]> {
