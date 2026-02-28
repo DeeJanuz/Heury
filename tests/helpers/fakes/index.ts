@@ -12,3 +12,4 @@ export { InMemoryEventFlowRepository } from './fake-event-flow-repository.js';
 export { InMemorySchemaModelRepository } from './fake-schema-model-repository.js';
 export { InMemoryUnitSummaryRepository } from './fake-unit-summary-repository.js';
 export { InMemoryGuardClauseRepository } from './fake-guard-clause-repository.js';
+export { InMemoryFileClusterRepository } from './fake-file-cluster-repository.js';

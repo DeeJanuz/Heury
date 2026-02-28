@@ -29,6 +29,7 @@ import type {
   IEventFlowRepository,
   ISchemaModelRepository,
   IGuardClauseRepository,
+  IFileClusterRepository,
   IFileSystem,
 } from '@/domain/ports/index.js';
 import type { LanguageRegistry } from '@/extraction/language-registry.js';
@@ -56,6 +57,7 @@ export interface AnalysisDependencies {
   readonly eventFlowRepo?: IEventFlowRepository;
   readonly schemaModelRepo?: ISchemaModelRepository;
   readonly guardClauseRepo?: IGuardClauseRepository;
+  readonly fileClusterRepo?: IFileClusterRepository;
 }
 
 export class AnalysisOrchestrator {
@@ -235,6 +237,8 @@ export class AnalysisOrchestrator {
         eventFlowRepo: this.deps.eventFlowRepo!,
         schemaModelRepo: this.deps.schemaModelRepo!,
         guardClauseRepo: this.deps.guardClauseRepo,
+        dependencyRepo: this.deps.dependencyRepo,
+        fileClusterRepo: this.deps.fileClusterRepo,
       });
     }
 
@@ -255,6 +259,7 @@ export class AnalysisOrchestrator {
     this.deps.codeUnitRepo.clear();
     this.deps.dependencyRepo.clear();
     this.deps.envVarRepo.clear();
+    this.deps.fileClusterRepo?.clear();
     if (this.hasDeepAnalysisDeps()) {
       this.deps.functionCallRepo!.clear();
       this.deps.typeFieldRepo!.clear();

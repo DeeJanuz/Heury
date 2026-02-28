@@ -20,6 +20,7 @@ import type {
   ISchemaModelRepository,
   IUnitSummaryRepository,
   IGuardClauseRepository,
+  IFileClusterRepository,
 } from '@/domain/ports/index.js';
 import { ToolRegistry } from './tool-registry.js';
 import { createGetAnalysisStatsTool } from './tools/get-analysis-stats.js';
@@ -38,6 +39,7 @@ import { createGetFunctionContextTool } from './tools/get-function-context.js';
 import { createGetPatternsByTypeTool } from './tools/get-patterns-by-type.js';
 import { createGetUnitSummariesTool } from './tools/get-unit-summaries.js';
 import { createGetFunctionGuardsTool } from './tools/get-function-guards.js';
+import { createGetFeatureAreaTool } from './tools/get-feature-area.js';
 
 export interface McpServerDependencies {
   codeUnitRepo: ICodeUnitRepository;
@@ -52,6 +54,7 @@ export interface McpServerDependencies {
   schemaModelRepo?: ISchemaModelRepository;
   unitSummaryRepo?: IUnitSummaryRepository;
   guardClauseRepo?: IGuardClauseRepository;
+  fileClusterRepo?: IFileClusterRepository;
 }
 
 export function createMcpServer(deps: McpServerDependencies): Server {
@@ -84,6 +87,7 @@ Quick reference:
 - get_function_context: Complete context for a function: signature, calls, callers, events, types, summary
 - get_unit_summaries: LLM-generated summaries for code units with key behaviors and side effects
 - get_function_guards: Query guard clauses in functions by unit ID, file path, or guard type
+- get_feature_area: Rich context about a feature area (file cluster): metadata, code units, dependencies, patterns, and summary
 
 Token tips: Start with manifests (free orientation, relevance-ranked). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
@@ -146,6 +150,15 @@ Token tips: Start with manifests (free orientation, relevance-ranked). Use get_c
       createGetFunctionGuardsTool({
         guardClauseRepo: deps.guardClauseRepo,
         codeUnitRepo: deps.codeUnitRepo,
+      }),
+    );
+  }
+  if (deps.fileClusterRepo) {
+    tools.push(
+      createGetFeatureAreaTool({
+        fileClusterRepo: deps.fileClusterRepo,
+        codeUnitRepo: deps.codeUnitRepo,
+        dependencyRepo: deps.dependencyRepo,
       }),
     );
   }

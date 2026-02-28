@@ -62,6 +62,7 @@ export async function analyzeCommand(
           eventFlowRepo: dependencies.eventFlowRepo,
           schemaModelRepo: dependencies.schemaModelRepo,
           functionCallRepo: dependencies.functionCallRepo,
+          fileClusterRepo: dependencies.fileClusterRepo,
         },
         {
           outputDir: `${options.dir}/${config.outputDir}`,

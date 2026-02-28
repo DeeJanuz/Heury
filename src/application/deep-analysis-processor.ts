@@ -10,14 +10,15 @@
  */
 
 import type { CodeUnit } from '@/domain/models/index.js';
-import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField, createGuardClause } from '@/domain/models/index.js';
+import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField, createGuardClause, createFileCluster, createFileClusterMember } from '@/domain/models/index.js';
 import { CodeUnitType } from '@/domain/models/index.js';
-import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository } from '@/domain/ports/index.js';
+import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository, IFileDependencyRepository, IFileClusterRepository } from '@/domain/ports/index.js';
 import { extractFunctionCalls } from '@/extraction/call-graph-extractor.js';
 import { extractTypeFields } from '@/extraction/type-field-extractor.js';
 import { extractEventFlows } from '@/extraction/event-flow-extractor.js';
 import { extractSchemaModels } from '@/extraction/schema-model-extractor.js';
 import { extractGuards } from '@/extraction/guard-extractor.js';
+import { computeFileClusters } from './clustering/import-graph-cluster.js';
 import type { FileProcessingResult } from './file-processor.js';
 
 export interface DeepAnalysisDependencies {
@@ -26,6 +27,8 @@ export interface DeepAnalysisDependencies {
   readonly eventFlowRepo: IEventFlowRepository;
   readonly schemaModelRepo: ISchemaModelRepository;
   readonly guardClauseRepo?: IGuardClauseRepository;
+  readonly dependencyRepo?: IFileDependencyRepository;
+  readonly fileClusterRepo?: IFileClusterRepository;
 }
 
 export interface DeepAnalysisResult {
@@ -34,6 +37,7 @@ export interface DeepAnalysisResult {
   readonly eventFlowsExtracted: number;
   readonly schemaModelsExtracted: number;
   readonly guardsExtracted: number;
+  readonly clustersComputed: number;
 }
 
 /**
@@ -154,12 +158,44 @@ export function processDeepAnalysis(
     }
   }
 
+  // Compute file clusters from dependency graph
+  let clustersComputed = 0;
+  if (deps.fileClusterRepo && deps.dependencyRepo) {
+    const fileDeps = deps.dependencyRepo.findAll();
+    const clusters = computeFileClusters(fileDeps);
+
+    if (clusters.length > 0) {
+      deps.fileClusterRepo.clear();
+
+      const mapped = clusters.map(cluster => ({
+        cluster: createFileCluster({
+          id: cluster.id,
+          name: cluster.name,
+          cohesion: cluster.cohesion,
+          internalEdges: cluster.internalEdges,
+          externalEdges: cluster.externalEdges,
+        }),
+        members: cluster.files.map(filePath =>
+          createFileClusterMember({
+            clusterId: cluster.id,
+            filePath,
+            isEntryPoint: cluster.entryPoints.includes(filePath),
+          }),
+        ),
+      }));
+
+      deps.fileClusterRepo.saveBatch(mapped);
+      clustersComputed = clusters.length;
+    }
+  }
+
   return {
     functionCallsExtracted,
     typeFieldsExtracted,
     eventFlowsExtracted,
     schemaModelsExtracted,
     guardsExtracted,
+    clustersComputed,
   };
 }
 

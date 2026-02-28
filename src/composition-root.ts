@@ -15,6 +15,7 @@ import { SqliteTypeFieldRepository } from '@/adapters/storage/sqlite-type-field-
 import { SqliteEventFlowRepository } from '@/adapters/storage/sqlite-event-flow-repository.js';
 import { SqliteSchemaModelRepository } from '@/adapters/storage/sqlite-schema-model-repository.js';
 import { SqliteGuardClauseRepository } from '@/adapters/storage/sqlite-guard-clause-repository.js';
+import { SqliteFileClusterRepository } from '@/adapters/storage/sqlite-file-cluster-repository.js';
 import { createLanguageRegistry } from '@/extraction/index.js';
 
 export interface CompositionResult {
@@ -42,6 +43,7 @@ export async function createCompositionRoot(
     eventFlowRepo: new SqliteEventFlowRepository(db),
     schemaModelRepo: new SqliteSchemaModelRepository(db),
     guardClauseRepo: new SqliteGuardClauseRepository(db),
+    fileClusterRepo: new SqliteFileClusterRepository(db),
   };
 
   return { dependencies };

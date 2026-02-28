@@ -13,6 +13,7 @@ import {
   InMemoryTypeFieldRepository,
   InMemoryEventFlowRepository,
   InMemorySchemaModelRepository,
+  InMemoryFileClusterRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(fileSystem: IFileSystem): AnalysisDependencies {
@@ -533,6 +534,35 @@ export function handleB() {
       expect(callsAfter.some(c => c.calleeName === 'callOld')).toBe(false);
       // New calls from handleB/callNew should be present
       expect(callsAfter.some(c => c.calleeName === 'callNew')).toBe(true);
+    });
+  });
+
+  describe('file cluster clearing', () => {
+    it('should clear fileClusterRepo in clearAllData when provided', async () => {
+      const fileClusterRepo = new InMemoryFileClusterRepository();
+
+      // Pre-populate cluster data
+      fileClusterRepo.save(
+        { id: 'old-cluster', name: 'old', cohesion: 1, internalEdges: 0, externalEdges: 0 },
+        [{ clusterId: 'old-cluster', filePath: 'src/old.ts', isEntryPoint: false }],
+      );
+      expect(fileClusterRepo.findAll().length).toBe(1);
+
+      const { deps } = createDepsWithDeepAnalysis(fs);
+      const depsWithClusters: AnalysisDependencies = {
+        ...deps,
+        fileClusterRepo,
+      };
+      const orchestrator = new AnalysisOrchestrator(depsWithClusters);
+
+      // Full analysis calls clearAllData internally
+      await orchestrator.analyze(defaultOptions());
+
+      // Old cluster data should have been cleared by clearAllData
+      // (new clusters may or may not exist depending on deps found)
+      // The key assertion: old-cluster should be gone
+      const clusters = fileClusterRepo.findAll();
+      expect(clusters.some(c => c.cluster.id === 'old-cluster')).toBe(false);
     });
   });
 });

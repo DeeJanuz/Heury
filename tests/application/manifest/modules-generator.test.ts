@@ -5,12 +5,15 @@ import {
   InMemoryCodeUnitRepository,
   InMemoryFileDependencyRepository,
   InMemoryTypeFieldRepository,
+  InMemoryFileClusterRepository,
 } from '../../helpers/fakes/index.js';
 import {
   createCodeUnit,
   createCodeUnitPattern,
   createFileDependency,
   createTypeField,
+  createFileCluster,
+  createFileClusterMember,
   CodeUnitType,
   PatternType,
 } from '@/domain/models/index.js';
@@ -714,6 +717,304 @@ describe('generateModulesManifest', () => {
       const unitIndent = unitLine!.search(/\S/);
       const fieldIndent = fieldLine!.search(/\S/);
       expect(fieldIndent).toBeGreaterThan(unitIndent);
+    });
+  });
+
+  describe('feature areas (file clusters)', () => {
+    let clusterRepo: InMemoryFileClusterRepository;
+
+    beforeEach(() => {
+      clusterRepo = new InMemoryFileClusterRepository();
+    });
+
+    it('should show Feature Areas section when clusters exist', () => {
+      const cluster = createFileCluster({
+        id: 'cluster-1',
+        name: 'api',
+        cohesion: 0.85,
+        internalEdges: 10,
+        externalEdges: 2,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/api/router.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/api/handler.ts', isEntryPoint: false }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).toContain('## Feature Areas (Import Graph Clusters)');
+      expect(result).toContain('### api');
+    });
+
+    it('should show cohesion and file count for each cluster', () => {
+      const cluster = createFileCluster({
+        id: 'cluster-1',
+        name: 'storage',
+        cohesion: 0.92,
+        internalEdges: 8,
+        externalEdges: 1,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/storage/index.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/storage/db.ts', isEntryPoint: false }),
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/storage/cache.ts', isEntryPoint: false }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).toContain('### storage (cohesion: 0.92, 3 files)');
+    });
+
+    it('should list entry points for each cluster', () => {
+      const cluster = createFileCluster({
+        id: 'cluster-1',
+        name: 'api',
+        cohesion: 0.85,
+        internalEdges: 10,
+        externalEdges: 2,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/api/router.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/api/middleware.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-1', filePath: 'src/api/handler.ts', isEntryPoint: false }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).toContain('Entry points: src/api/router.ts, src/api/middleware.ts');
+    });
+
+    it('should sort clusters by file count descending', () => {
+      const smallCluster = createFileCluster({
+        id: 'cluster-small',
+        name: 'utils',
+        cohesion: 0.90,
+        internalEdges: 2,
+        externalEdges: 1,
+      });
+      clusterRepo.save(smallCluster, [
+        createFileClusterMember({ clusterId: 'cluster-small', filePath: 'src/utils/a.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-small', filePath: 'src/utils/b.ts', isEntryPoint: false }),
+      ]);
+
+      const largeCluster = createFileCluster({
+        id: 'cluster-large',
+        name: 'api',
+        cohesion: 0.80,
+        internalEdges: 15,
+        externalEdges: 5,
+      });
+      clusterRepo.save(largeCluster, [
+        createFileClusterMember({ clusterId: 'cluster-large', filePath: 'src/api/a.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-large', filePath: 'src/api/b.ts', isEntryPoint: false }),
+        createFileClusterMember({ clusterId: 'cluster-large', filePath: 'src/api/c.ts', isEntryPoint: false }),
+        createFileClusterMember({ clusterId: 'cluster-large', filePath: 'src/api/d.ts', isEntryPoint: false }),
+        createFileClusterMember({ clusterId: 'cluster-large', filePath: 'src/api/e.ts', isEntryPoint: false }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result.indexOf('### api')).toBeLessThan(result.indexOf('### utils'));
+    });
+
+    it('should aggregate and show top patterns from cluster files', () => {
+      // Create code units in files belonging to the cluster
+      repo.save(
+        createCodeUnit({
+          id: 'cu-1',
+          filePath: 'src/api/router.ts',
+          name: 'getUsers',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 20,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 5,
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: 'cu-1', patternType: PatternType.API_ENDPOINT, patternValue: 'GET /users' }),
+          ],
+        }),
+      );
+      repo.save(
+        createCodeUnit({
+          id: 'cu-2',
+          filePath: 'src/api/router.ts',
+          name: 'createUser',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 25,
+          lineEnd: 50,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 8,
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: 'cu-2', patternType: PatternType.API_ENDPOINT, patternValue: 'POST /users' }),
+            createCodeUnitPattern({ codeUnitId: 'cu-2', patternType: PatternType.DATABASE_WRITE, patternValue: 'prisma.user.create' }),
+          ],
+        }),
+      );
+      repo.save(
+        createCodeUnit({
+          id: 'cu-3',
+          filePath: 'src/api/handler.ts',
+          name: 'handleAuth',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 15,
+          isAsync: true,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 6,
+          patterns: [
+            createCodeUnitPattern({ codeUnitId: 'cu-3', patternType: PatternType.EXTERNAL_SERVICE, patternValue: 'jwt.verify' }),
+          ],
+        }),
+      );
+
+      const cluster = createFileCluster({
+        id: 'cluster-api',
+        name: 'api',
+        cohesion: 0.85,
+        internalEdges: 10,
+        externalEdges: 2,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-api', filePath: 'src/api/router.ts', isEntryPoint: true }),
+        createFileClusterMember({ clusterId: 'cluster-api', filePath: 'src/api/handler.ts', isEntryPoint: false }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).toContain('Top patterns: API_ENDPOINT (2), DATABASE_WRITE (1), EXTERNAL_SERVICE (1)');
+    });
+
+    it('should limit top patterns to 5', () => {
+      // Create code units with 6 different pattern types
+      const patternTypes = [
+        PatternType.API_ENDPOINT,
+        PatternType.DATABASE_READ,
+        PatternType.DATABASE_WRITE,
+        PatternType.API_CALL,
+        PatternType.EXTERNAL_SERVICE,
+        PatternType.ENV_VARIABLE,
+      ];
+      for (let i = 0; i < patternTypes.length; i++) {
+        repo.save(
+          createCodeUnit({
+            id: `cu-limit-${i}`,
+            filePath: 'src/big/file.ts',
+            name: `func${i}`,
+            unitType: CodeUnitType.FUNCTION,
+            lineStart: i * 10 + 1,
+            lineEnd: i * 10 + 9,
+            isAsync: false,
+            isExported: true,
+            language: 'typescript',
+            complexityScore: 1,
+            patterns: [
+              createCodeUnitPattern({ codeUnitId: `cu-limit-${i}`, patternType: patternTypes[i], patternValue: `val-${i}` }),
+            ],
+          }),
+        );
+      }
+
+      const cluster = createFileCluster({
+        id: 'cluster-big',
+        name: 'big',
+        cohesion: 0.70,
+        internalEdges: 5,
+        externalEdges: 3,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-big', filePath: 'src/big/file.ts', isEntryPoint: true }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      // Count pattern entries in the Top patterns line
+      const clusterSection = result.substring(result.indexOf('### big'));
+      const patternsLine = clusterSection.split('\n').find((l) => l.startsWith('Top patterns:'));
+      expect(patternsLine).toBeDefined();
+      // Count commas + 1 = number of patterns
+      const patternCount = (patternsLine!.match(/\(/g) ?? []).length;
+      expect(patternCount).toBeLessThanOrEqual(5);
+    });
+
+    it('should not show Feature Areas section when fileClusterRepo is not provided', () => {
+      const result = generateModulesManifest(repo, depRepo, 5000);
+
+      expect(result).not.toContain('Feature Areas');
+    });
+
+    it('should not show Feature Areas section when no clusters exist', () => {
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).not.toContain('Feature Areas');
+    });
+
+    it('should respect token budget for cluster section', () => {
+      // Create many clusters to exceed a small budget
+      for (let i = 0; i < 20; i++) {
+        const cluster = createFileCluster({
+          id: `cluster-${i}`,
+          name: `cluster-with-a-long-name-${i}`,
+          cohesion: 0.80,
+          internalEdges: 5,
+          externalEdges: 2,
+        });
+        const members = [];
+        for (let j = 0; j < 5; j++) {
+          members.push(
+            createFileClusterMember({
+              clusterId: `cluster-${i}`,
+              filePath: `src/cluster-${i}/file-${j}.ts`,
+              isEntryPoint: j === 0,
+            }),
+          );
+        }
+        clusterRepo.save(cluster, members);
+      }
+
+      // Very small budget — not all clusters can fit
+      const result = generateModulesManifest(repo, depRepo, 50, undefined, clusterRepo);
+
+      // Result should be bounded
+      expect(result.length).toBeLessThan(300);
+    });
+
+    it('should show no Top patterns line when cluster files have no patterns', () => {
+      repo.save(
+        createCodeUnit({
+          filePath: 'src/clean/index.ts',
+          name: 'cleanFunc',
+          unitType: CodeUnitType.FUNCTION,
+          lineStart: 1,
+          lineEnd: 10,
+          isAsync: false,
+          isExported: true,
+          language: 'typescript',
+          complexityScore: 1,
+        }),
+      );
+
+      const cluster = createFileCluster({
+        id: 'cluster-clean',
+        name: 'clean',
+        cohesion: 0.95,
+        internalEdges: 3,
+        externalEdges: 0,
+      });
+      clusterRepo.save(cluster, [
+        createFileClusterMember({ clusterId: 'cluster-clean', filePath: 'src/clean/index.ts', isEntryPoint: true }),
+      ]);
+
+      const result = generateModulesManifest(repo, depRepo, 5000, undefined, clusterRepo);
+
+      expect(result).toContain('### clean');
+      // The cluster section should not have a Top patterns line
+      const clusterSection = result.substring(result.indexOf('### clean'));
+      expect(clusterSection).not.toContain('Top patterns:');
     });
   });
 });

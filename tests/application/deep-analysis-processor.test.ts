@@ -2,13 +2,15 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { processDeepAnalysis, type DeepAnalysisDependencies } from '@/application/deep-analysis-processor.js';
 import type { FileProcessingResult } from '@/application/file-processor.js';
-import { createCodeUnit, CodeUnitType } from '@/domain/models/index.js';
+import { createCodeUnit, CodeUnitType, createFileDependency } from '@/domain/models/index.js';
 import {
   InMemoryFunctionCallRepository,
   InMemoryTypeFieldRepository,
   InMemoryEventFlowRepository,
   InMemorySchemaModelRepository,
   InMemoryGuardClauseRepository,
+  InMemoryFileDependencyRepository,
+  InMemoryFileClusterRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(): DeepAnalysisDependencies & {
@@ -422,6 +424,95 @@ model Post {
       expect(result.typeFieldsExtracted).toBe(0);
       expect(result.eventFlowsExtracted).toBe(0);
       expect(result.guardsExtracted).toBe(0);
+    });
+  });
+
+  describe('file clustering', () => {
+    it('should compute and save file clusters after deep analysis when repos are provided', () => {
+      const dependencyRepo = new InMemoryFileDependencyRepository();
+      const fileClusterRepo = new InMemoryFileClusterRepository();
+
+      // Add some file dependencies
+      dependencyRepo.save(createFileDependency({
+        sourceFile: 'src/a.ts',
+        targetFile: 'src/b.ts',
+        importType: 'named',
+        importedNames: ['foo'],
+      }));
+      dependencyRepo.save(createFileDependency({
+        sourceFile: 'src/b.ts',
+        targetFile: 'src/c.ts',
+        importType: 'named',
+        importedNames: ['bar'],
+      }));
+
+      const depsWithClustering: DeepAnalysisDependencies = {
+        ...deps,
+        dependencyRepo,
+        fileClusterRepo,
+      };
+
+      const result = processDeepAnalysis([], new Map(), depsWithClustering);
+
+      // Clusters should have been computed and saved
+      const clusters = fileClusterRepo.findAll();
+      expect(clusters.length).toBeGreaterThanOrEqual(1);
+      expect(result.clustersComputed).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should not run clustering when fileClusterRepo is not provided', () => {
+      const result = processDeepAnalysis([], new Map(), deps);
+
+      // No crash, just zero clusters
+      expect(result.clustersComputed).toBe(0);
+    });
+
+    it('should clear existing clusters before saving new ones', () => {
+      const dependencyRepo = new InMemoryFileDependencyRepository();
+      const fileClusterRepo = new InMemoryFileClusterRepository();
+
+      // Pre-populate with old cluster data
+      fileClusterRepo.save(
+        { id: 'old-cluster', name: 'old', cohesion: 1, internalEdges: 0, externalEdges: 0 },
+        [{ clusterId: 'old-cluster', filePath: 'src/old.ts', isEntryPoint: false }],
+      );
+
+      dependencyRepo.save(createFileDependency({
+        sourceFile: 'src/x.ts',
+        targetFile: 'src/y.ts',
+        importType: 'named',
+        importedNames: ['x'],
+      }));
+
+      const depsWithClustering: DeepAnalysisDependencies = {
+        ...deps,
+        dependencyRepo,
+        fileClusterRepo,
+      };
+
+      processDeepAnalysis([], new Map(), depsWithClustering);
+
+      const clusters = fileClusterRepo.findAll();
+      // Old cluster should be cleared; only new clusters remain
+      expect(clusters.some(c => c.cluster.id === 'old-cluster')).toBe(false);
+      expect(clusters.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should handle empty dependencies gracefully (no clusters)', () => {
+      const dependencyRepo = new InMemoryFileDependencyRepository();
+      const fileClusterRepo = new InMemoryFileClusterRepository();
+
+      const depsWithClustering: DeepAnalysisDependencies = {
+        ...deps,
+        dependencyRepo,
+        fileClusterRepo,
+      };
+
+      const result = processDeepAnalysis([], new Map(), depsWithClustering);
+
+      const clusters = fileClusterRepo.findAll();
+      expect(clusters.length).toBe(0);
+      expect(result.clustersComputed).toBe(0);
     });
   });
 });

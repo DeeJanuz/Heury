@@ -1,7 +1,7 @@
-import type { ICodeUnitRepository, IFileDependencyRepository, ITypeFieldRepository } from '@/domain/ports/index.js';
-import type { CodeUnit } from '@/domain/models/index.js';
+import type { ICodeUnitRepository, IFileDependencyRepository, ITypeFieldRepository, IFileClusterRepository } from '@/domain/ports/index.js';
+import type { CodeUnit, RepositoryFileCluster, RepositoryFileClusterMember } from '@/domain/models/index.js';
 import { CodeUnitType, PatternType } from '@/domain/models/index.js';
-import { fitSections, type Section } from './token-budgeter.js';
+import { estimateTokens, fitSections, type Section } from './token-budgeter.js';
 
 const SCORED_PATTERN_TYPES = new Set<string>([
   PatternType.API_ENDPOINT,
@@ -12,28 +12,52 @@ const SCORED_PATTERN_TYPES = new Set<string>([
 
 const COMPLEXITY_THRESHOLD = 15;
 
+const MAX_CLUSTER_PATTERNS = 5;
+
 /**
  * Generate MODULES.md - overview of all code modules/files.
  * Groups code units by file path, scored by relevance and fitted to budget.
+ * Optionally appends a Feature Areas section from file clusters.
  */
 export function generateModulesManifest(
   codeUnitRepo: ICodeUnitRepository,
   dependencyRepo: IFileDependencyRepository,
   maxTokens: number,
   typeFieldRepo?: ITypeFieldRepository,
+  fileClusterRepo?: IFileClusterRepository,
 ): string {
   const allUnits = codeUnitRepo.findAll();
   const fileGroups = groupByFilePath(allUnits);
 
-  const sections: Section[] = [];
+  const moduleSections: Section[] = [];
 
   for (const [filePath, units] of fileGroups) {
     const content = buildFileSection(filePath, units, typeFieldRepo);
     const score = scoreFile(units, filePath, dependencyRepo);
-    sections.push({ content, score });
+    moduleSections.push({ content, score });
   }
 
-  return fitSections('# Modules\n', sections, maxTokens);
+  const modulesOutput = fitSections('# Modules\n', moduleSections, maxTokens);
+
+  const clusterSections = buildClusterSections(fileGroups, fileClusterRepo);
+  if (clusterSections.length === 0) {
+    return modulesOutput;
+  }
+
+  const remainingTokens = maxTokens - estimateTokens(modulesOutput);
+  if (remainingTokens <= 0) {
+    return modulesOutput;
+  }
+
+  const clusterHeader = '\n## Feature Areas (Import Graph Clusters)\n\n';
+  const clusterOutput = fitSections(clusterHeader, clusterSections, remainingTokens);
+
+  // Only append if at least one cluster was included (not just the header)
+  if (clusterOutput === clusterHeader) {
+    return modulesOutput;
+  }
+
+  return modulesOutput + clusterOutput;
 }
 
 const TYPE_FIELD_UNIT_TYPES = new Set<CodeUnitType>([
@@ -176,4 +200,78 @@ function collectPatternTypes(units: CodeUnit[]): string[] {
     }
   }
   return [...types].sort();
+}
+
+/**
+ * Build scored sections for file clusters.
+ * Each cluster becomes a section with score = member count (so largest clusters are prioritised).
+ */
+function buildClusterSections(
+  fileGroups: Map<string, CodeUnit[]>,
+  fileClusterRepo?: IFileClusterRepository,
+): Section[] {
+  if (!fileClusterRepo) {
+    return [];
+  }
+
+  const allClusters = fileClusterRepo.findAll();
+  if (allClusters.length === 0) {
+    return [];
+  }
+
+  return allClusters.map(({ cluster, members }) => ({
+    content: buildClusterSection(cluster, members, fileGroups),
+    score: members.length,
+  }));
+}
+
+function buildClusterSection(
+  cluster: RepositoryFileCluster,
+  members: RepositoryFileClusterMember[],
+  fileGroups: Map<string, CodeUnit[]>,
+): string {
+  const lines: string[] = [];
+  lines.push(`### ${cluster.name} (cohesion: ${cluster.cohesion.toFixed(2)}, ${members.length} files)`);
+
+  const entryPoints = members.filter((m) => m.isEntryPoint).map((m) => m.filePath);
+  if (entryPoints.length > 0) {
+    lines.push(`Entry points: ${entryPoints.join(', ')}`);
+  }
+
+  const patternCounts = aggregateClusterPatterns(members, fileGroups);
+  if (patternCounts.length > 0) {
+    const topPatterns = patternCounts
+      .slice(0, MAX_CLUSTER_PATTERNS)
+      .map(([type, count]) => `${type} (${count})`)
+      .join(', ');
+    lines.push(`Top patterns: ${topPatterns}`);
+  }
+
+  lines.push('');
+  return lines.join('\n');
+}
+
+/**
+ * Aggregate pattern type counts across all files in a cluster.
+ * Returns entries sorted by count descending, then alphabetically.
+ */
+function aggregateClusterPatterns(
+  members: RepositoryFileClusterMember[],
+  fileGroups: Map<string, CodeUnit[]>,
+): [string, number][] {
+  const counts = new Map<string, number>();
+
+  for (const member of members) {
+    const units = fileGroups.get(member.filePath) ?? [];
+    for (const unit of units) {
+      for (const pattern of unit.patterns) {
+        counts.set(pattern.patternType, (counts.get(pattern.patternType) ?? 0) + 1);
+      }
+    }
+  }
+
+  return [...counts.entries()].sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0]);
+  });
 }
