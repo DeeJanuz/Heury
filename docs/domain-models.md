@@ -450,6 +450,47 @@ OPTIONS
 
 ---
 
+### RepositoryPatternTemplate
+**Purpose:** Represents a detected recurring pattern combination (convention) with a canonical example (template) and a count of followers. Computed by analyzing code units that share the same set of pattern types.
+
+**Properties:**
+- id: string - Primary key
+- name: string - Auto-derived name from pattern types (e.g., "Api Endpoint with Database Write")
+- description: string - Human-readable description with occurrence count
+- patternTypes: string[] - Sorted list of PatternType values that define the combination
+- templateUnitId: string - Foreign key to the canonical CodeUnit example
+- templateFilePath: string - File path of the template code unit
+- followerCount: number - Number of code units following this pattern (excludes the template)
+- conventions: string[] - Derived convention descriptions (up to 3)
+
+**Validation:**
+- name must not be empty
+- description must not be empty
+- templateUnitId must not be empty
+- templateFilePath must not be empty
+- followerCount must be >= 0
+- patternTypes must be an array
+- conventions must be an array
+
+---
+
+### RepositoryPatternTemplateFollower
+**Purpose:** Records a code unit that follows a pattern template (i.e., shares the same pattern type combination as the template).
+
+**Properties:**
+- templateId: string - Foreign key to RepositoryPatternTemplate
+- filePath: string - Path of the follower file
+- unitName: string - Name of the follower code unit
+
+**Unique Constraint:** (templateId, filePath, unitName)
+
+**Validation:**
+- templateId must not be empty
+- filePath must not be empty
+- unitName must not be empty
+
+---
+
 ## Deep Structural Ports (Repository Interfaces)
 
 ### IFunctionCallRepository
@@ -523,6 +564,15 @@ OPTIONS
 - findAll(): { cluster: RepositoryFileCluster; members: RepositoryFileClusterMember[] }[]
 - clear(): void
 
+### IPatternTemplateRepository
+**Methods:**
+- save(template: RepositoryPatternTemplate, followers: RepositoryPatternTemplateFollower[]): void
+- saveBatch(templates: Array<{ template: RepositoryPatternTemplate; followers: RepositoryPatternTemplateFollower[] }>): void
+- findById(id: string): { template: RepositoryPatternTemplate; followers: RepositoryPatternTemplateFollower[] } | undefined
+- findByPatternType(patternType: string): { template: RepositoryPatternTemplate; followers: RepositoryPatternTemplateFollower[] }[]
+- findAll(): { template: RepositoryPatternTemplate; followers: RepositoryPatternTemplateFollower[] }[]
+- clear(): void
+
 ### ILlmProvider
 **Purpose:** Port for BYOK LLM providers used by the enrichment pipeline to generate code unit summaries.
 
@@ -562,4 +612,9 @@ SchemaModel (1) ----< (many) SchemaModelField (via modelId)
 File Clustering:
 RepositoryFileCluster (1) ----< (many) RepositoryFileClusterMember (via clusterId)
 FileDependency graph --> computeFileClusters() --> RepositoryFileCluster + members
+
+Pattern Templates:
+RepositoryPatternTemplate (1) ----< (many) RepositoryPatternTemplateFollower (via templateId)
+CodeUnit (1) ---- (0..1) RepositoryPatternTemplate (as template, via templateUnitId)
+CodeUnit patterns --> detectPatternTemplates() --> RepositoryPatternTemplate + followers
 ```

@@ -260,10 +260,11 @@ Additionally, LLM-generated function summaries can provide human-readable descri
 Add a Deep Structural Analysis phase (Path C) as a post-processing step after the main analysis pipeline:
 - **5 new heuristic extractors:** call graph, type fields, event flows, schema models, guards
 - **Import graph clustering:** Connected-component analysis on the file dependency graph with directory-boundary splitting for large components; computes feature areas with cohesion metrics and entry points
-- **8 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary, RepositoryGuardClause, RepositoryFileCluster/RepositoryFileClusterMember
-- **8 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, IGuardClauseRepository, IFileClusterRepository, ILlmProvider
-- **8 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context, get-patterns-by-type, get-unit-summaries, get-function-guards, get-feature-area
-- **Enhanced manifests:** MODULES.md includes type fields and feature area clustering, PATTERNS.md includes event flows, HOTSPOTS.md includes fan-out analysis, new SCHEMA.md for data models
+- **Pattern template detection:** Identifies recurring pattern type combinations across code units, selects canonical examples as templates, and tracks followers; exposed in PATTERNS.md manifests and via MCP tool
+- **10 new domain models:** FunctionCall, TypeField, EventFlow, SchemaModel/SchemaModelField, UnitSummary, RepositoryGuardClause, RepositoryFileCluster/RepositoryFileClusterMember, RepositoryPatternTemplate/RepositoryPatternTemplateFollower
+- **9 new repository ports/adapters:** IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IUnitSummaryRepository, IGuardClauseRepository, IFileClusterRepository, IPatternTemplateRepository, ILlmProvider
+- **9 new MCP tools:** trace-call-chain, get-event-flow, get-data-models, get-function-context, get-patterns-by-type, get-unit-summaries, get-function-guards, get-feature-area, find-implementation-pattern
+- **Enhanced manifests:** MODULES.md includes type fields and feature area clustering, PATTERNS.md includes event flows and convention sections from pattern templates, HOTSPOTS.md includes fan-out analysis, new SCHEMA.md for data models
 - **Optional BYOK LLM enrichment:** Anthropic, OpenAI, or Gemini for AI-generated function summaries
 
 #### Rationale
@@ -295,7 +296,7 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 - Event flow tracking makes event-driven architectures transparent
 
 **Negative:**
-- 9 new database tables (migrations 002-deep-analysis.sql, 003-enhancements.sql: guard_clauses, file_clusters, file_cluster_members plus 6 deep analysis tables)
+- 11 new database tables (migrations 002-deep-analysis.sql, 003-enhancements.sql: guard_clauses, file_clusters, file_cluster_members, pattern_templates, pattern_template_followers plus 6 deep analysis tables)
 - Deep analysis adds processing time proportional to codebase size
 - Call graph resolution is heuristic (name-based, not fully resolved)
 
@@ -334,3 +335,4 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 | 2026-02-28 | ADR-005 | Updated: Token budget note (5K -> 10K, configurable) | System |
 | 2026-02-28 | ADR-005 | Updated: Guard clause persistence (migration 003), 3 new MCP tools (get-patterns-by-type, get-unit-summaries, get-function-guards) | System |
 | 2026-02-28 | ADR-005 | Updated: Import graph clustering (file_clusters/file_cluster_members tables), get-feature-area MCP tool, feature areas in MODULES.md manifests | System |
+| 2026-02-28 | ADR-005 | Updated: Pattern template detection (pattern_templates/pattern_template_followers tables), find-implementation-pattern MCP tool, Conventions section in PATTERNS.md | System |

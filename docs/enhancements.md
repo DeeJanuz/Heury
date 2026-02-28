@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-02-28
-**Total Active Issues:** 8
+**Total Active Issues:** 10
 **Resolved This Month:** 4
 
 ---
@@ -25,6 +25,20 @@
 - **Detected:** 2026-02-28, commit f749d47
 
 ### Low Severity
+
+#### [LOW-010] generatePatternsManifest Growing Positional Parameter List (5 Params)
+- **File:** `src/application/manifest/patterns-generator.ts`
+- **Principle:** SRP (secondary: readability)
+- **Description:** `generatePatternsManifest` now accepts 5 positional parameters (`codeUnitRepo`, `envVarRepo`, `maxTokens`, `eventFlowRepo?`, `patternTemplateRepo?`), two of which are optional trailing params. This mirrors the same issue already tracked in LOW-008 for `generateModulesManifest`. Adding another optional repo will make call sites difficult to read. The function signature is fragile because optional positional params must maintain order.
+- **Suggested Fix:** Bundle the repository dependencies into a `PatternsGeneratorDeps` interface object, consistent with the fix suggested for LOW-008. This would unify the approach across all manifest generators.
+- **Detected:** 2026-02-28, commit 6211e80
+
+#### [LOW-009] deep-analysis-processor.ts processDeepAnalysis Accumulating Extraction Responsibilities
+- **File:** `src/application/deep-analysis-processor.ts`
+- **Principle:** SRP
+- **Description:** `processDeepAnalysis` now orchestrates 7 distinct extraction/computation tasks: function calls, type fields, event flows, schema models, guards, file clusters, and pattern templates. The `DeepAnalysisDependencies` interface has grown to 9 optional/required repos. Each new feature adds another `if (deps.xRepo)` block to the function body. The function is 239 lines and still manageable but is on a trajectory toward becoming a god function. The pattern template block (lines 196-228) follows the same structural pattern as the cluster block, suggesting an extraction opportunity.
+- **Suggested Fix:** Consider extracting each post-processing step into a separate function or class behind a common `DeepAnalysisStep` interface with `canRun(deps): boolean` and `run(fileResults, fileContents, deps): StepResult`. The orchestrator iterates over registered steps. Not urgent since the current structure is readable, but monitor as more steps are added.
+- **Detected:** 2026-02-28, commit 6211e80
 
 #### [LOW-008] generateModulesManifest Growing Parameter List (5 Positional Params)
 - **File:** `src/application/manifest/modules-generator.ts`
@@ -98,9 +112,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 8 |
+| Total Active | 10 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 2 |
-| Low | 6 |
+| Low | 8 |
 | Resolved This Month | 4 |
