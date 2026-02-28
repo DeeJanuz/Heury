@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-02-28
-**Total Active Issues:** 2
+**Total Active Issues:** 3
 **Resolved This Month:** 4
 
 ---
@@ -9,6 +9,13 @@
 ## Active Issues
 
 ### Low Severity
+
+#### [LOW-005] function-extractor.ts Name and Scope Mismatch (Growing SRP Concern)
+- **File:** `src/extraction/function-extractor.ts`
+- **Principle:** SRP
+- **Description:** The file is named "function-extractor" but now extracts 7 distinct construct types: named functions, arrow functions, classes, methods, interfaces, enums, and type aliases. At 468 lines, the `extractCodeUnits` orchestrator function must be modified each time a new construct type is added (mild OCP concern). The file is not yet a god module but is on a trajectory toward one.
+- **Suggested Fix:** Rename to `ts-code-unit-extractor.ts` (or similar) to match actual scope. If the file grows past ~600 lines, consider extracting each construct extractor into its own module with a registry pattern so new types can be added without modifying `extractCodeUnits`. Monitor for now.
+- **Detected:** 2026-02-28, commit dae2249
 
 #### [LOW-004] analyzeCommand Accumulating Post-Analysis Responsibilities
 - **File:** `src/cli/commands/analyze.ts`
@@ -54,9 +61,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 2 |
+| Total Active | 3 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 0 |
-| Low | 2 |
+| Low | 3 |
 | Resolved This Month | 4 |

@@ -45,7 +45,7 @@ This three-tier flow is the heart of heury's value:
 
 ### Tier 1 - Quick Discovery (Manifest Files)
 
-The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, and `HOTSPOTS.md` in one shot (~5K tokens total). It gets instant understanding of what the codebase does, its key patterns, and areas of complexity.
+The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, and `HOTSPOTS.md` in one shot (~5K tokens total). It gets instant understanding of what the codebase does, its key patterns, and areas of complexity. Manifests are **relevance-ranked** — the most important files and sections appear first, and items that don't fit the token budget are omitted with a summary count. Omitted items remain available via MCP tools.
 
 ### Tier 2 - Targeted Reading (Informed by Discovery)
 
@@ -89,7 +89,7 @@ All output lives in `.heury/` at the project root. This directory is **gitignore
 | `HOTSPOTS.md` | Complexity hotspots | Areas of high complexity needing attention |
 | `analysis.db` | Full SQLite database | All analysis data, vectors, relationships |
 
-**Token budget target**: ~5K tokens combined for the four markdown files. Enough detail for orientation, concise enough for a single context read.
+**Token budget target**: ~5K tokens combined for the four markdown files. Enough detail for orientation, concise enough for a single context read. Each manifest uses **section-based bin-packing** — content is divided into scored sections (by exports, patterns, dependencies, complexity) and the highest-scoring sections are included first. Complete sections are always included or omitted entirely, never truncated mid-section.
 
 ### MCP Server
 
