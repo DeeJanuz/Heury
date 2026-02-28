@@ -45,7 +45,7 @@ This three-tier flow is the heart of heury's value:
 
 ### Tier 1 - Quick Discovery (Manifest Files)
 
-The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, `HOTSPOTS.md`, and `SCHEMA.md` in one shot (~5K tokens total). It gets instant understanding of what the codebase does, its key patterns, data models, and areas of complexity. Manifests are **relevance-ranked** — the most important files and sections appear first, and items that don't fit the token budget are omitted with a summary count. Omitted items remain available via MCP tools.
+The LLM reads `.heury/MODULES.md`, `PATTERNS.md`, `DEPENDENCIES.md`, `HOTSPOTS.md`, and `SCHEMA.md` in one shot (~10K tokens total by default). It gets instant understanding of what the codebase does, its key patterns, data models, and areas of complexity. Manifests are **relevance-ranked** — the most important files and sections appear first, and items that don't fit the token budget are omitted with a summary count. Omitted items remain available via MCP tools.
 
 ### Tier 2 - Targeted Reading (Informed by Discovery)
 
@@ -90,7 +90,7 @@ All output lives in `.heury/` at the project root. This directory is **gitignore
 | `SCHEMA.md` | Data model definitions | ORM/schema models with fields, types, constraints, and relations |
 | `analysis.db` | Full SQLite database | All analysis data, vectors, relationships, call graph, event flows, schema models |
 
-**Token budget target**: ~5K tokens combined for the five markdown files. Enough detail for orientation, concise enough for a single context read. Each manifest uses **section-based bin-packing** — content is divided into scored sections (by exports, patterns, dependencies, complexity) and the highest-scoring sections are included first. Complete sections are always included or omitted entirely, never truncated mid-section.
+**Token budget target**: ~10K tokens combined for the five markdown files (default, configurable via `manifestTokenBudget` in `heury.config.json`). Enough detail for orientation, concise enough for a single context read. Each manifest uses **section-based bin-packing** — content is divided into scored sections (by exports, patterns, dependencies, complexity) and the highest-scoring sections are included first. Complete sections are always included or omitted entirely, never truncated mid-section.
 
 ### MCP Server
 
@@ -161,6 +161,7 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | `get_code_units` | Retrieve functions, classes, methods for a file or module |
 | `get_dependencies` | Query import/export relationships |
 | `get_api_endpoints` | List discovered API endpoints with routes and methods |
+| `get_env_variables` | List environment variables detected in .env.example files |
 
 ### File Access Tools
 
@@ -233,6 +234,9 @@ Configuration lives in `heury.config.json` at the project root.
     "model": "",               // Optional model override
     "apiKey": ""               // Required for "openai" provider
   },
+
+  // Optional: Override the default manifest token budget (default: 10000)
+  "manifestTokenBudget": 10000,
 
   // Optional: BYOK LLM enrichment for AI-generated function summaries
   "enrichment": {

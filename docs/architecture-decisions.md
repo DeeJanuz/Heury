@@ -301,7 +301,7 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 **Neutral:**
 - Enrichment is entirely optional (BYOK, off by default)
 - All new extractors follow the existing heuristic pattern
-- Token budget remains the same; new data fills previously underutilized manifests
+- Token budget increased from 5K to 10K (configurable via `manifestTokenBudget`); new data fills previously underutilized manifests
 
 ---
 
@@ -330,3 +330,4 @@ Add a Deep Structural Analysis phase (Path C) as a post-processing step after th
 | 2026-02-26 | ADR-004 | Initial: Local-first storage | System |
 | 2026-02-27 | ADR-004 | Updated: Reflect in-memory vector search implementation | System |
 | 2026-02-28 | ADR-005 | Initial: Deep Structural Analysis via heuristic extractors | System |
+| 2026-02-28 | ADR-005 | Updated: Token budget note (5K -> 10K, configurable) | System |
