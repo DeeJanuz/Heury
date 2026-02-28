@@ -15,3 +15,4 @@ export { createTypeField, type TypeField } from './type-field.js';
 export { createEventFlow, type EventFlow } from './event-flow.js';
 export { createSchemaModel, createSchemaModelField, type SchemaModel, type SchemaModelField } from './schema-model.js';
 export { createUnitSummary, type UnitSummary } from './unit-summary.js';
+export { createGuardClause, type RepositoryGuardClause } from './guard-clause.js';

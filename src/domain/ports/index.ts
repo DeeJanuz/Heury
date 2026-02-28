@@ -12,3 +12,4 @@ export type { IEventFlowRepository } from './event-flow-repository.js';
 export type { ISchemaModelRepository } from './schema-model-repository.js';
 export type { IUnitSummaryRepository } from './unit-summary-repository.js';
 export type { ILlmProvider, LlmProviderConfig } from './llm-provider.js';
+export type { IGuardClauseRepository } from './guard-clause-repository.js';

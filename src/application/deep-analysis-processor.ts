@@ -10,9 +10,9 @@
  */
 
 import type { CodeUnit } from '@/domain/models/index.js';
-import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField } from '@/domain/models/index.js';
+import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel, createSchemaModelField, createGuardClause } from '@/domain/models/index.js';
 import { CodeUnitType } from '@/domain/models/index.js';
-import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository } from '@/domain/ports/index.js';
+import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository } from '@/domain/ports/index.js';
 import { extractFunctionCalls } from '@/extraction/call-graph-extractor.js';
 import { extractTypeFields } from '@/extraction/type-field-extractor.js';
 import { extractEventFlows } from '@/extraction/event-flow-extractor.js';
@@ -25,6 +25,7 @@ export interface DeepAnalysisDependencies {
   readonly typeFieldRepo: ITypeFieldRepository;
   readonly eventFlowRepo: IEventFlowRepository;
   readonly schemaModelRepo: ISchemaModelRepository;
+  readonly guardClauseRepo?: IGuardClauseRepository;
 }
 
 export interface DeepAnalysisResult {
@@ -80,19 +81,20 @@ export function processDeepAnalysis(
 
   // Process each file's code units
   for (const fileResult of fileResults) {
-    const allFunctionCalls = [];
-    const allTypeFields = [];
-    const allEventFlows = [];
+    const allFunctionCalls: ReturnType<typeof createFunctionCall>[] = [];
+    const allTypeFields: ReturnType<typeof createTypeField>[] = [];
+    const allEventFlows: ReturnType<typeof createEventFlow>[] = [];
+    const allGuardClauses: ReturnType<typeof createGuardClause>[] = [];
 
     for (const unit of fileResult.codeUnits) {
-      const counts = processUnit(
+      processUnit(
         unit,
         fileResult.bodiesByUnitId,
         allFunctionCalls,
         allTypeFields,
         allEventFlows,
+        allGuardClauses,
       );
-      guardsExtracted += counts.guards;
     }
 
     // Batch save per file
@@ -107,6 +109,10 @@ export function processDeepAnalysis(
     if (allEventFlows.length > 0) {
       deps.eventFlowRepo.saveBatch(allEventFlows);
       eventFlowsExtracted += allEventFlows.length;
+    }
+    if (allGuardClauses.length > 0 && deps.guardClauseRepo) {
+      deps.guardClauseRepo.saveBatch(allGuardClauses);
+      guardsExtracted += allGuardClauses.length;
     }
   }
 
@@ -158,10 +164,18 @@ export function processDeepAnalysis(
 }
 
 /**
+ * Build a condition string from an extracted guard.
+ * Combines condition and errorType fields into a single string for persistence.
+ */
+function buildGuardCondition(guard: { condition?: string; errorType?: string; guardType: string }): string {
+  if (guard.condition) return guard.condition;
+  if (guard.errorType) return guard.errorType;
+  return guard.guardType;
+}
+
+/**
  * Process a single code unit and its children recursively.
  * Appends domain objects to the provided arrays for batch saving.
- *
- * @returns Guard count for this unit and its children
  */
 function processUnit(
   unit: CodeUnit,
@@ -169,12 +183,12 @@ function processUnit(
   functionCalls: ReturnType<typeof createFunctionCall>[],
   typeFields: ReturnType<typeof createTypeField>[],
   eventFlows: ReturnType<typeof createEventFlow>[],
-): { guards: number } {
-  let guards = 0;
+  guardClauses: ReturnType<typeof createGuardClause>[],
+): void {
   const body = bodiesByUnitId.get(unit.id);
 
   if (body) {
-    // Function calls + event flows for callable units
+    // Function calls + event flows + guards for callable units
     if (CALLABLE_UNIT_TYPES.has(unit.unitType)) {
       const calls = extractFunctionCalls(body);
       for (const call of calls) {
@@ -200,7 +214,14 @@ function processUnit(
       }
 
       const extractedGuards = extractGuards(body);
-      guards += extractedGuards.length;
+      for (const guard of extractedGuards) {
+        guardClauses.push(createGuardClause({
+          codeUnitId: unit.id,
+          guardType: guard.guardType,
+          condition: buildGuardCondition(guard),
+          lineNumber: guard.lineNumber,
+        }));
+      }
     }
 
     // Type fields for type-like units
@@ -221,9 +242,6 @@ function processUnit(
 
   // Process children recursively
   for (const child of unit.children) {
-    const childCounts = processUnit(child, bodiesByUnitId, functionCalls, typeFields, eventFlows);
-    guards += childCounts.guards;
+    processUnit(child, bodiesByUnitId, functionCalls, typeFields, eventFlows, guardClauses);
   }
-
-  return { guards };
 }

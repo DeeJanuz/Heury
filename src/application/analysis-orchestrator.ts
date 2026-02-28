@@ -28,6 +28,7 @@ import type {
   ITypeFieldRepository,
   IEventFlowRepository,
   ISchemaModelRepository,
+  IGuardClauseRepository,
   IFileSystem,
 } from '@/domain/ports/index.js';
 import type { LanguageRegistry } from '@/extraction/language-registry.js';
@@ -54,6 +55,7 @@ export interface AnalysisDependencies {
   readonly typeFieldRepo?: ITypeFieldRepository;
   readonly eventFlowRepo?: IEventFlowRepository;
   readonly schemaModelRepo?: ISchemaModelRepository;
+  readonly guardClauseRepo?: IGuardClauseRepository;
 }
 
 export class AnalysisOrchestrator {
@@ -232,6 +234,7 @@ export class AnalysisOrchestrator {
         typeFieldRepo: this.deps.typeFieldRepo!,
         eventFlowRepo: this.deps.eventFlowRepo!,
         schemaModelRepo: this.deps.schemaModelRepo!,
+        guardClauseRepo: this.deps.guardClauseRepo,
       });
     }
 
@@ -257,6 +260,7 @@ export class AnalysisOrchestrator {
       this.deps.typeFieldRepo!.clear();
       this.deps.eventFlowRepo!.clear();
       this.deps.schemaModelRepo!.clear();
+      this.deps.guardClauseRepo?.clear();
     }
   }
 
@@ -295,6 +299,7 @@ export class AnalysisOrchestrator {
     this.deps.functionCallRepo!.deleteByCallerUnitId(unit.id);
     this.deps.typeFieldRepo!.deleteByParentUnitId(unit.id);
     this.deps.eventFlowRepo!.deleteByCodeUnitId(unit.id);
+    this.deps.guardClauseRepo?.deleteByCodeUnitId(unit.id);
 
     for (const child of unit.children) {
       this.clearDeepDataForUnit(child as typeof unit);

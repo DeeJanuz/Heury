@@ -19,6 +19,7 @@ import type {
   IEventFlowRepository,
   ISchemaModelRepository,
   IUnitSummaryRepository,
+  IGuardClauseRepository,
 } from '@/domain/ports/index.js';
 import { ToolRegistry } from './tool-registry.js';
 import { createGetAnalysisStatsTool } from './tools/get-analysis-stats.js';
@@ -34,6 +35,9 @@ import { createTraceCallChainTool } from './tools/trace-call-chain.js';
 import { createGetEventFlowTool } from './tools/get-event-flow.js';
 import { createGetDataModelsTool } from './tools/get-data-models.js';
 import { createGetFunctionContextTool } from './tools/get-function-context.js';
+import { createGetPatternsByTypeTool } from './tools/get-patterns-by-type.js';
+import { createGetUnitSummariesTool } from './tools/get-unit-summaries.js';
+import { createGetFunctionGuardsTool } from './tools/get-function-guards.js';
 
 export interface McpServerDependencies {
   codeUnitRepo: ICodeUnitRepository;
@@ -47,6 +51,7 @@ export interface McpServerDependencies {
   eventFlowRepo?: IEventFlowRepository;
   schemaModelRepo?: ISchemaModelRepository;
   unitSummaryRepo?: IUnitSummaryRepository;
+  guardClauseRepo?: IGuardClauseRepository;
 }
 
 export function createMcpServer(deps: McpServerDependencies): Server {
@@ -70,12 +75,15 @@ Quick reference:
 - get_dependencies: Import graph filtered by source or target file
 - get_api_endpoints: API routes with HTTP methods and handler locations
 - get_env_variables: List environment variables from .env.example files
+- get_patterns_by_type: Query code unit patterns by type (DATABASE_READ, API_ENDPOINT, etc.) with optional file path filter
 - get_file_content: Read source files with optional line ranges
 - vector_search: Semantic similarity search across code units
 - trace_call_chain: Trace function call chains forward (callees) or backward (callers) with configurable depth
 - get_event_flow: Query event emissions and subscriptions by event name, direction, or framework
 - get_data_models: List schema/data models with their fields, types, and relations
 - get_function_context: Complete context for a function: signature, calls, callers, events, types, summary
+- get_unit_summaries: LLM-generated summaries for code units with key behaviors and side effects
+- get_function_guards: Query guard clauses in functions by unit ID, file path, or guard type
 
 Token tips: Start with manifests (free orientation, relevance-ranked). Use get_code_units with is_exported: true to discover public APIs before reading source. Compact format includes signatures — check contracts before reading full files.`,
     },
@@ -97,6 +105,7 @@ Token tips: Start with manifests (free orientation, relevance-ranked). Use get_c
     createGetApiEndpointsTool({ codeUnitRepo: deps.codeUnitRepo }),
     createGetFileContentTool({ fileSystem: deps.fileSystem }),
     createGetEnvVariablesTool({ envVarRepo: deps.envVarRepo }),
+    createGetPatternsByTypeTool({ codeUnitRepo: deps.codeUnitRepo }),
     createVectorSearchTool({ vectorSearch: deps.vectorSearch }),
   ];
 
@@ -121,6 +130,22 @@ Token tips: Start with manifests (free orientation, relevance-ranked). Use get_c
     tools.push(
       createGetDataModelsTool({
         schemaModelRepo: deps.schemaModelRepo,
+      }),
+    );
+  }
+  if (deps.unitSummaryRepo) {
+    tools.push(
+      createGetUnitSummariesTool({
+        unitSummaryRepo: deps.unitSummaryRepo,
+        codeUnitRepo: deps.codeUnitRepo,
+      }),
+    );
+  }
+  if (deps.guardClauseRepo) {
+    tools.push(
+      createGetFunctionGuardsTool({
+        guardClauseRepo: deps.guardClauseRepo,
+        codeUnitRepo: deps.codeUnitRepo,
       }),
     );
   }

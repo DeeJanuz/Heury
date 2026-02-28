@@ -8,6 +8,7 @@ import {
   InMemoryTypeFieldRepository,
   InMemoryEventFlowRepository,
   InMemorySchemaModelRepository,
+  InMemoryGuardClauseRepository,
 } from '../helpers/fakes/index.js';
 
 function createDeps(): DeepAnalysisDependencies & {
@@ -15,12 +16,14 @@ function createDeps(): DeepAnalysisDependencies & {
   typeFieldRepo: InMemoryTypeFieldRepository;
   eventFlowRepo: InMemoryEventFlowRepository;
   schemaModelRepo: InMemorySchemaModelRepository;
+  guardClauseRepo: InMemoryGuardClauseRepository;
 } {
   return {
     functionCallRepo: new InMemoryFunctionCallRepository(),
     typeFieldRepo: new InMemoryTypeFieldRepository(),
     eventFlowRepo: new InMemoryEventFlowRepository(),
     schemaModelRepo: new InMemorySchemaModelRepository(),
+    guardClauseRepo: new InMemoryGuardClauseRepository(),
   };
 }
 

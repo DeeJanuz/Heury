@@ -25,6 +25,7 @@ export async function serveCommand(
         dependencyRepo: dependencies.dependencyRepo,
         envVarRepo: dependencies.envVarRepo,
         fileSystem: fs,
+        guardClauseRepo: dependencies.guardClauseRepo,
       });
     } else {
       console.error(`Unsupported transport: ${options.transport}. Use "stdio".`);
