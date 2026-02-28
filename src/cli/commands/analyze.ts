@@ -72,6 +72,7 @@ export async function analyzeCommand(
           schemaModelRepo: dependencies.schemaModelRepo,
           functionCallRepo: dependencies.functionCallRepo,
           fileClusterRepo: dependencies.fileClusterRepo,
+          patternTemplateRepo: dependencies.patternTemplateRepo,
         },
         {
           outputDir: `${options.dir}/${config.outputDir}`,
@@ -135,6 +136,7 @@ async function runIncrementalAnalysis(
         schemaModelRepo: dependencies.schemaModelRepo,
         functionCallRepo: dependencies.functionCallRepo,
         fileClusterRepo: dependencies.fileClusterRepo,
+        patternTemplateRepo: dependencies.patternTemplateRepo,
       },
       {
         outputDir: `${options.dir}/${config.outputDir}`,
