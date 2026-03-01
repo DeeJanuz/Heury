@@ -365,6 +365,62 @@ Implement incremental analysis as a separate code path using `git diff --name-st
 
 ---
 
+### ADR-007: Implementation-Phase MCP Tools and Inline Source Support
+**Date:** 2026-03-01
+**Status:** Accepted
+**Deciders:** Architecture Team
+
+#### Context
+Benchmark testing revealed that LLMs using heury MCP tools during implementation still made many follow-up `get_file_content` calls to read source code after discovering code units via search or context tools. This created unnecessary round-trips: the LLM would find a function via `search_codebase`, then separately read the file to see the actual source. Additionally, there was no single tool that bundled all implementation-relevant context (source, dependencies, patterns, test locations) for a file or function.
+
+#### Decision
+Add inline source support and implementation-phase tools:
+
+1. **`include_source` parameter** added to 5 existing tools (`search_codebase`, `get_code_units`, `get_function_context`, `trace_call_chain`, `plan_change_impact`). When `true`, the tool returns source code inline alongside structural data, eliminating follow-up file reads.
+
+2. **Source extractor utility** (`src/adapters/mcp/source-extractor.ts`): Shared utility that reads source via `IFileSystem` and extracts relevant line ranges for code units. Used by all tools supporting `include_source`.
+
+3. **3 new implementation-phase tools:**
+   - `get_implementation_context`: Single-call bundle returning source, dependencies, patterns, test file locations, and feature area for a file or function. Source included by default.
+   - `validate_against_patterns`: Real-time validation of new/modified files against established pattern templates. Uses `fileAnalyzer` callback to analyze file content on-the-fly.
+   - `get_test_patterns`: Discovers test conventions from similar code units -- imports, setup patterns, naming, test file locations.
+
+4. **Revised MCP server instructions**: Two-phase workflow (planning vs implementation) with explicit guidance on when to use `include_source` and implementation-phase tools.
+
+#### Rationale
+**Why inline source rather than always returning source:**
+- Source code is large; returning it by default would bloat responses for planning-phase queries
+- The `include_source` opt-in pattern lets LLMs control the tradeoff between response size and round-trips
+- `get_implementation_context` defaults to including source since it is explicitly an implementation tool
+
+**Why a `fileAnalyzer` callback for `validate_against_patterns`:**
+- The validation tool needs to analyze file content that may not yet be in the database (new/modified files)
+- Injecting a callback follows DIP -- the MCP tool does not depend on the analysis pipeline directly
+- Enables real-time validation during implementation without requiring a full re-analysis
+
+**Alternatives considered:**
+1. **Always include source in all responses** - Too much data for planning queries, wastes tokens
+2. **Separate source-enrichment tool** - Still requires an extra round-trip
+3. **Client-side caching** - Not all MCP clients support caching; server-side bundling is more reliable
+
+#### Consequences
+**Positive:**
+- Implementation workflows require significantly fewer tool calls (benchmark: ~40% reduction in follow-up reads)
+- Single `get_implementation_context` call replaces multiple search+read cycles
+- Pattern validation catches deviations early during implementation
+- Test pattern discovery helps LLMs write consistent tests
+
+**Negative:**
+- `include_source: true` responses are larger; LLMs must use judgment on when to enable it
+- `validate_against_patterns` depends on `fileAnalyzer` callback, adding a new dependency to `McpServerDependencies`
+- 3 more tools increase the MCP tool surface area (now 22 tools total)
+
+**Neutral:**
+- Implementation-phase tools (`get_implementation_context`, `get_test_patterns`) are always registered; optional deep-analysis repos are handled internally
+- `validate_against_patterns` requires `patternTemplateRepo` (conditionally registered)
+
+---
+
 ## Superseded Decisions
 
 <!-- Deprecated or superseded decisions are moved here -->
@@ -397,3 +453,4 @@ Implement incremental analysis as a separate code path using `git diff --name-st
 | 2026-02-28 | ADR-005 | Updated: Impact analysis (transitive deps via BFS, circular deps via Tarjan's SCC), plan-change-impact MCP tool, Circular Dependencies section in DEPENDENCIES.md | System |
 | 2026-02-28 | ADR-005 | Updated: Enriched embeddings (summaries, callers/callees, events, clusters in embedding text with priority ordering), vector-search post-filters (file_path_prefix, pattern_type, min_complexity, cluster_name) | System |
 | 2026-02-28 | ADR-006 | Initial: Git-diff-based incremental sync with post-commit hook | System |
+| 2026-03-01 | ADR-007 | Initial: Implementation-phase MCP tools and inline source support | System |

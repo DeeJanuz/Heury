@@ -99,7 +99,11 @@ Both transports supported:
 - **stdio (default)**: Zero configuration. Works with any MCP client that supports stdio.
 - **HTTP (optional)**: For clients or workflows that need HTTP transport. Configurable port.
 
-The server includes built-in `instructions` that guide LLM clients through the hybrid discovery workflow (ORIENT with manifests, TARGET with search tools, READ source files, VERIFY dependencies). MCP clients that support server instructions will receive this guidance automatically.
+The server includes built-in `instructions` that guide LLM clients through a two-phase hybrid workflow:
+- **Planning phase**: ORIENT with manifests, TARGET with search tools, DEEP READ source files, use `get_dependencies` and `plan_change_impact` for blast radius
+- **Implementation phase**: Use `get_implementation_context` for single-call bundles, pass `include_source: true` to tools to get inline source and avoid follow-up file reads, use `get_test_patterns` for test conventions, use `validate_against_patterns` for real-time pattern checking
+
+MCP clients that support server instructions will receive this guidance automatically.
 
 ---
 
@@ -194,6 +198,23 @@ Simplified from Ludflow's 18 tools to a focused set for local codebase analysis:
 | Tool | Purpose |
 |------|---------|
 | `vector_search` | Semantic search across code units with enriched embeddings (summaries, call graph, events, clusters) and post-filters (file_path_prefix, pattern_type, min_complexity, cluster_name) |
+
+### Implementation-Phase Tools
+
+| Tool | Purpose |
+|------|---------|
+| `get_implementation_context` | Single-call bundle: source code, dependencies, patterns, test file locations, and feature area context for a file or function. Source included by default. |
+| `validate_against_patterns` | Validate new or modified files against established pattern templates in real-time |
+| `get_test_patterns` | Discover test conventions from similar code units: imports, setup patterns, naming conventions, test file locations |
+
+### Inline Source Support
+
+The following tools support an `include_source: true` parameter that returns source code inline, eliminating follow-up `get_file_content` calls during implementation:
+- `search_codebase`
+- `get_code_units`
+- `get_function_context`
+- `trace_call_chain`
+- `plan_change_impact`
 
 ### What Was Removed (Ludflow-specific)
 
