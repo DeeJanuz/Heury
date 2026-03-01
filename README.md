@@ -71,6 +71,10 @@ Install a git hook to run incremental analysis on every commit:
 heury hook install
 ```
 
+## Contributing
+
+Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for details on our development workflow, code standards, and the CLA requirement.
+
 ## License
 
 [Elastic License 2.0](LICENSE)
