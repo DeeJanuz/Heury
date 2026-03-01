@@ -75,6 +75,10 @@ We follow TDD. For every change:
 - **Hexagonal architecture** — separate domain logic from infrastructure
 - **SOLID principles** — single responsibility, dependency inversion, etc.
 
+For deeper context, see:
+- [Architecture Decisions](docs/architecture-decisions.md) — ADRs explaining key design choices
+- [Project Vision](docs/project-vision.md) — overall goals, scope, and design philosophy
+
 ## What to Contribute
 
 Check the [issue tracker](https://github.com/djgrant/heury/issues) for open issues. Issues labeled `good first issue` are a great starting point.
