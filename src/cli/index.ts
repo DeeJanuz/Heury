@@ -56,6 +56,7 @@ program
   .description('Start the UI viewer')
   .option('-d, --dir <directory>', 'Project directory', '.')
   .option('-p, --port <port>', 'Port number', '3939')
+  .option('-H, --host <host>', 'Host to bind to (use 0.0.0.0 for remote access)', 'localhost')
   .action((options) => uiCommand(options));
 
 program.parse();

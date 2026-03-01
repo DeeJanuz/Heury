@@ -35,7 +35,7 @@ export interface UiServerDependencies {
 
 export interface UiServer {
   readonly app: Express;
-  start(port: number): Promise<void>;
+  start(port: number, host?: string): Promise<void>;
 }
 
 export function createUiServer(deps: UiServerDependencies): UiServer {
@@ -59,17 +59,18 @@ export function createUiServer(deps: UiServerDependencies): UiServer {
   app.use(express.static(clientPath));
 
   // SPA fallback: any non-API route serves index.html
-  app.get('*', (_req: Request, res: Response) => {
+  app.get('{*path}', (_req: Request, res: Response) => {
     res.sendFile(path.join(clientPath, 'index.html'));
   });
 
   return {
     app,
-    start(port: number): Promise<void> {
-      return new Promise((resolve) => {
-        app.listen(port, () => {
+    start(port: number, host = 'localhost'): Promise<void> {
+      return new Promise((resolve, reject) => {
+        const server = app.listen(port, host, () => {
           resolve();
         });
+        server.on('error', reject);
       });
     },
   };

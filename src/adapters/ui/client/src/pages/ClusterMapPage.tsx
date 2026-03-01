@@ -135,47 +135,56 @@ export const ClusterMapPage: React.FC<ClusterMapPageProps> = ({ onNavigate }) =>
               <div>
                 <div style={{ marginBottom: '16px' }}>
                   <div style={{ fontSize: '18px', fontWeight: 700, color: '#1a1a2e', marginBottom: '4px' }}>
-                    {selectedDetail.name}
+                    {selectedDetail.cluster.name}
                   </div>
                   <div style={{ fontSize: '13px', color: '#666', display: 'flex', gap: '16px' }}>
-                    <span>{selectedDetail.memberCount} members</span>
-                    <span>{Math.round(selectedDetail.cohesion * 100)}% cohesion</span>
+                    <span>{selectedDetail.members.length} members</span>
+                    <span>{Math.round(selectedDetail.cluster.cohesion * 100)}% cohesion</span>
                   </div>
-                  {selectedDetail.languages.length > 0 && (
-                    <div style={{ marginTop: '8px', display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                      {selectedDetail.languages.map((lang) => (
-                        <span
-                          key={lang}
-                          style={{
-                            fontSize: '11px',
-                            padding: '2px 8px',
-                            borderRadius: '4px',
-                            backgroundColor: '#f0f0f0',
-                            color: '#666',
-                          }}
-                        >
-                          {lang}
-                        </span>
-                      ))}
+                  <div style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'flex', gap: '16px' }}>
+                    <span>{selectedDetail.cluster.internalEdges} internal edges</span>
+                    <span>{selectedDetail.cluster.externalEdges} external edges</span>
+                  </div>
+                  {selectedDetail.cluster.entryPoints.length > 0 && (
+                    <div style={{ marginTop: '8px' }}>
+                      <div style={{ fontSize: '11px', color: '#999', fontWeight: 600, textTransform: 'uppercase', marginBottom: '4px' }}>
+                        Entry Points
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                        {selectedDetail.cluster.entryPoints.map((ep) => (
+                          <span
+                            key={ep}
+                            style={{
+                              fontSize: '11px',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              backgroundColor: '#e8f5e9',
+                              color: '#2e7d32',
+                              fontFamily: 'var(--font-mono)',
+                            }}
+                          >
+                            {ep}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
 
-                {selectedDetail.members && selectedDetail.members.length > 0 && (
+                {selectedDetail.codeUnits && selectedDetail.codeUnits.length > 0 && (
                   <div>
                     <h4 style={{ fontSize: '13px', fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: '8px' }}>
-                      Members
+                      Code Units ({selectedDetail.codeUnits.length})
                     </h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {selectedDetail.members.map((unit) => (
+                      {selectedDetail.codeUnits.map((unit) => (
                         <CodeUnitCard
                           key={unit.id}
                           id={unit.id}
                           name={unit.name}
-                          type={unit.type}
+                          type={unit.unitType}
                           filePath={unit.filePath}
-                          language={unit.language}
-                          patterns={unit.patterns}
+                          patterns={unit.patterns.map((p) => `${p.patternType}: ${p.patternValue}`)}
                           onClick={() => onNavigate(`#/code-units/${unit.id}`)}
                         />
                       ))}

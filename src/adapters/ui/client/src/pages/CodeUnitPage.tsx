@@ -1,7 +1,7 @@
 import React from 'react';
 import { useApi } from '../hooks/useApi';
 import { PatternBadge } from '../components/PatternBadge';
-import type { CodeUnitDetail } from '../types';
+import type { CodeUnitDetail, FunctionCallRef } from '../types';
 
 interface CodeUnitPageProps {
   id: string;
@@ -35,6 +35,9 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
       </div>
     );
   }
+
+  const callers = unit.functionCalls?.callers ?? [];
+  const callees = unit.functionCalls?.callees ?? [];
 
   return (
     <div>
@@ -79,10 +82,10 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
                 textTransform: 'uppercase',
               }}
             >
-              {unit.type}
+              {unit.unitType}
             </span>
           </div>
-          {unit.complexity !== undefined && (
+          {unit.complexityScore !== undefined && (
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: '#999', textTransform: 'uppercase', fontWeight: 600 }}>
                 Complexity
@@ -92,10 +95,10 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
                   fontSize: '28px',
                   fontWeight: 700,
                   fontFamily: 'var(--font-mono)',
-                  color: unit.complexity > 20 ? '#e74c3c' : unit.complexity > 10 ? '#f59e0b' : '#22c55e',
+                  color: unit.complexityScore > 20 ? '#e74c3c' : unit.complexityScore > 10 ? '#f59e0b' : '#22c55e',
                 }}
               >
-                {unit.complexity}
+                {unit.complexityScore}
               </div>
             </div>
           )}
@@ -104,7 +107,9 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
           <InfoRow label="File" value={unit.filePath} mono />
           <InfoRow label="Language" value={unit.language} />
-          <InfoRow label="Lines" value={`${unit.startLine} - ${unit.endLine}`} mono />
+          <InfoRow label="Lines" value={`${unit.lineStart} - ${unit.lineEnd}`} mono />
+          <InfoRow label="Exported" value={unit.isExported ? 'Yes' : 'No'} />
+          <InfoRow label="Async" value={unit.isAsync ? 'Yes' : 'No'} />
         </div>
 
         {unit.signature && (
@@ -138,7 +143,7 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
             </div>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
               {unit.patterns.map((p) => (
-                <PatternBadge key={p} pattern={p} />
+                <PatternBadge key={p.id} pattern={`${p.patternType}: ${p.patternValue}`} />
               ))}
             </div>
           </div>
@@ -146,19 +151,25 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-        {unit.callers && unit.callers.length > 0 && (
+        {callers.length > 0 && (
           <ReferenceList
             title="Callers"
-            items={unit.callers}
+            items={callers}
             onNavigate={onNavigate}
+            getUnitId={(item) => item.callerUnitId}
+            getName={(item) => item.callerName}
+            getFilePath={(item) => item.callerFilePath}
           />
         )}
 
-        {unit.callees && unit.callees.length > 0 && (
+        {callees.length > 0 && (
           <ReferenceList
             title="Callees"
-            items={unit.callees}
+            items={callees}
             onNavigate={onNavigate}
+            getUnitId={(item) => item.calleeUnitId}
+            getName={(item) => item.calleeName}
+            getFilePath={(item) => item.calleeFilePath}
           />
         )}
       </div>
@@ -181,16 +192,20 @@ export const CodeUnitPage: React.FC<CodeUnitPageProps> = ({ id, onNavigate }) =>
               <tr style={{ borderBottom: '2px solid #eee' }}>
                 <th style={thStyle}>Name</th>
                 <th style={thStyle}>Type</th>
+                <th style={thStyle}>Optional</th>
               </tr>
             </thead>
             <tbody>
-              {unit.typeFields.map((field, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+              {unit.typeFields.map((field) => (
+                <tr key={field.id} style={{ borderBottom: '1px solid #f0f0f0' }}>
                   <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '13px' }}>
-                    {field.name}
+                    {field.fieldName}
                   </td>
                   <td style={{ padding: '8px 12px', fontFamily: 'var(--font-mono)', fontSize: '13px', color: '#666' }}>
-                    {field.type}
+                    {field.fieldType}
+                  </td>
+                  <td style={{ padding: '8px 12px', fontSize: '13px', color: '#999' }}>
+                    {field.isOptional ? 'Yes' : 'No'}
                   </td>
                 </tr>
               ))}
@@ -224,11 +239,14 @@ const InfoRow: React.FC<{ label: string; value: string; mono?: boolean }> = ({ l
 
 interface ReferenceListProps {
   title: string;
-  items: Array<{ id: string; name: string; filePath: string; type: string }>;
+  items: FunctionCallRef[];
   onNavigate: (hash: string) => void;
+  getUnitId: (item: FunctionCallRef) => string | null;
+  getName: (item: FunctionCallRef) => string;
+  getFilePath: (item: FunctionCallRef) => string;
 }
 
-const ReferenceList: React.FC<ReferenceListProps> = ({ title, items, onNavigate }) => (
+const ReferenceList: React.FC<ReferenceListProps> = ({ title, items, onNavigate, getUnitId, getName, getFilePath }) => (
   <div
     style={{
       backgroundColor: '#fff',
@@ -241,34 +259,46 @@ const ReferenceList: React.FC<ReferenceListProps> = ({ title, items, onNavigate 
       {title} ({items.length})
     </h3>
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-      {items.map((item) => (
-        <a
-          key={item.id}
-          href={`#/code-units/${item.id}`}
-          onClick={(e) => {
-            e.preventDefault();
-            onNavigate(`#/code-units/${item.id}`);
-          }}
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '8px 12px',
-            borderRadius: '6px',
-            textDecoration: 'none',
-            color: '#333',
-            backgroundColor: '#f8f8f8',
-            transition: 'background-color 0.2s',
-          }}
-          onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e8eaf6'; }}
-          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8f8f8'; }}
-        >
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: '#4361ee' }}>
-            {item.name}
-          </span>
-          <span style={{ fontSize: '11px', color: '#999' }}>{item.type}</span>
-        </a>
-      ))}
+      {items.map((item) => {
+        const unitId = getUnitId(item);
+        const name = getName(item);
+        const filePath = getFilePath(item);
+        const canNavigate = unitId !== null;
+
+        return (
+          <a
+            key={item.id}
+            href={canNavigate ? `#/code-units/${unitId}` : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              if (canNavigate) {
+                onNavigate(`#/code-units/${unitId}`);
+              }
+            }}
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '8px 12px',
+              borderRadius: '6px',
+              textDecoration: 'none',
+              color: '#333',
+              backgroundColor: '#f8f8f8',
+              cursor: canNavigate ? 'pointer' : 'default',
+              transition: 'background-color 0.2s',
+            }}
+            onMouseEnter={(e) => { if (canNavigate) e.currentTarget.style.backgroundColor = '#e8eaf6'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f8f8f8'; }}
+          >
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: '13px', fontWeight: 600, color: canNavigate ? '#4361ee' : '#666' }}>
+              {name}
+            </span>
+            <span style={{ fontSize: '11px', color: '#999', fontFamily: 'var(--font-mono)', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {filePath}
+            </span>
+          </a>
+        );
+      })}
     </div>
   </div>
 );

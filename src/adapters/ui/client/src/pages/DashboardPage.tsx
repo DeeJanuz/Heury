@@ -18,13 +18,14 @@ export const DashboardPage: React.FC = () => {
   }
 
   const cards = [
-    { label: 'Code Units', value: stats.totalCodeUnits, color: '#4361ee' },
-    { label: 'Files', value: stats.totalFiles, color: '#2ecc71' },
-    { label: 'Dependencies', value: stats.totalDependencies, color: '#e67e22' },
-    { label: 'Clusters', value: stats.totalClusters, color: '#9b59b6' },
+    { label: 'Code Units', value: stats.total_code_units, color: '#4361ee' },
+    { label: 'Files', value: stats.total_files, color: '#2ecc71' },
+    { label: 'Patterns', value: stats.total_patterns, color: '#f39c12' },
+    { label: 'Dependencies', value: stats.total_dependencies, color: '#e67e22' },
+    { label: 'Clusters', value: stats.total_clusters, color: '#9b59b6' },
   ];
 
-  const languages = Object.entries(stats.languageBreakdown).sort(([, a], [, b]) => b - a);
+  const languages = Object.entries(stats.languages).sort(([, a], [, b]) => b - a);
   const totalLangCount = languages.reduce((sum, [, count]) => sum + count, 0);
 
   return (

@@ -39,8 +39,8 @@ function buildLayoutedElements(
   const edgeSet = new Set<string>();
 
   for (const [, detail] of clusterDetails) {
-    if (detail.externalDependencies) {
-      for (const dep of detail.externalDependencies) {
+    if (detail.externalDeps) {
+      for (const dep of detail.externalDeps) {
         const sourceCluster = clusters.find((c) => c.id === dep.source || c.name === dep.source);
         const targetCluster = clusters.find((c) => c.id === dep.target || c.name === dep.target);
         if (sourceCluster && targetCluster && sourceCluster.id !== targetCluster.id) {

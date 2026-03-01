@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { SearchBar } from '../components/SearchBar';
-import { PatternBadge } from '../components/PatternBadge';
 import { useApi } from '../hooks/useApi';
-import type { SearchResult } from '../types';
+import type { SearchResponse } from '../types';
 
 interface SearchPageProps {
   onNavigate: (hash: string) => void;
@@ -10,7 +9,7 @@ interface SearchPageProps {
 
 export const SearchPage: React.FC<SearchPageProps> = ({ onNavigate }) => {
   const [searchUrl, setSearchUrl] = useState<string | null>(null);
-  const { data: results, loading, error } = useApi<SearchResult[]>(searchUrl);
+  const { data: response, loading, error } = useApi<SearchResponse>(searchUrl);
 
   const handleSearch = (query: string, type: string) => {
     const params = new URLSearchParams({ q: query, limit: '50' });
@@ -19,6 +18,8 @@ export const SearchPage: React.FC<SearchPageProps> = ({ onNavigate }) => {
     }
     setSearchUrl(`/api/search?${params.toString()}`);
   };
+
+  const results = response?.items ?? [];
 
   return (
     <div>
@@ -39,81 +40,84 @@ export const SearchPage: React.FC<SearchPageProps> = ({ onNavigate }) => {
         </div>
       )}
 
-      {!loading && !error && results && results.length === 0 && (
+      {!loading && !error && response && results.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
           No results found. Try a different query.
         </div>
       )}
 
-      {!loading && !error && !results && !searchUrl && (
+      {!loading && !error && !response && !searchUrl && (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
           Enter a search query to find code units, patterns, and files.
         </div>
       )}
 
-      {results && results.length > 0 && (
-        <div
-          style={{
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            overflow: 'hidden',
-          }}
-        >
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ borderBottom: '2px solid #eee' }}>
-                <th style={thStyle}>Name</th>
-                <th style={thStyle}>Type</th>
-                <th style={thStyle}>File Path</th>
-                <th style={thStyle}>Language</th>
-                <th style={thStyle}>Patterns</th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((result) => (
-                <tr
-                  key={result.id}
-                  onClick={() => onNavigate(`#/code-units/${result.id}`)}
-                  style={{ borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#f8f9ff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#4361ee' }}>
-                    {result.name}
-                  </td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: '#e8eaf6',
-                        color: '#3949ab',
-                        textTransform: 'uppercase',
-                      }}
-                    >
-                      {result.type}
-                    </span>
-                  </td>
-                  <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#666', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {result.filePath}
-                  </td>
-                  <td style={{ ...tdStyle, fontSize: '12px', color: '#999' }}>{result.language}</td>
-                  <td style={tdStyle}>
-                    {result.patterns?.map((p) => (
-                      <PatternBadge key={p} pattern={p} />
-                    ))}
-                  </td>
+      {results.length > 0 && (
+        <div>
+          <div style={{ fontSize: '13px', color: '#999', marginBottom: '12px' }}>
+            {response?.total} results found
+          </div>
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+              overflow: 'hidden',
+            }}
+          >
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '2px solid #eee' }}>
+                  <th style={thStyle}>Name</th>
+                  <th style={thStyle}>Type</th>
+                  <th style={thStyle}>File Path</th>
+                  <th style={thStyle}>Language</th>
+                  <th style={thStyle}>Lines</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {results.map((result) => (
+                  <tr
+                    key={result.id}
+                    onClick={() => onNavigate(`#/code-units/${result.id}`)}
+                    style={{ borderBottom: '1px solid #f0f0f0', cursor: 'pointer' }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f8f9ff';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                  >
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontWeight: 600, color: '#4361ee' }}>
+                      {result.name}
+                    </td>
+                    <td style={tdStyle}>
+                      <span
+                        style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: '#e8eaf6',
+                          color: '#3949ab',
+                          textTransform: 'uppercase',
+                        }}
+                      >
+                        {result.unitType}
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#666', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {result.filePath}
+                    </td>
+                    <td style={{ ...tdStyle, fontSize: '12px', color: '#999' }}>{result.language}</td>
+                    <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#999' }}>
+                      {result.lineStart}-{result.lineEnd}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
