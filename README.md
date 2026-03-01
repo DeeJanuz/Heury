@@ -71,10 +71,14 @@ Install a git hook to run incremental analysis on every commit:
 heury hook install
 ```
 
+## Ludflow
+
+Heury is part of the [Ludflow](https://ludflow.com) project. If you're looking for a managed SaaS tool that brings organizational data and data governance into your AI workflows, check out [ludflow.com](https://ludflow.com).
+
 ## Contributing
 
 Contributions are welcome! Please read the [Contributing Guide](CONTRIBUTING.md) for details on our development workflow, code standards, and the CLA requirement.
 
 ## License
 
-[Elastic License 2.0](LICENSE)
+[Elastic License 2.0](LICENSE) — Licensor: Ludflow LLC
