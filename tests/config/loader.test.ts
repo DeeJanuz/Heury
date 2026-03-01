@@ -18,7 +18,6 @@ describe('Config Loader', () => {
       expect(config.outputDir).toBe(DEFAULT_CONFIG.outputDir);
       expect(config.include).toEqual(DEFAULT_CONFIG.include);
       expect(config.exclude).toEqual(DEFAULT_CONFIG.exclude);
-      expect(config.embedding.provider).toBe('local');
     });
 
     it('should set rootDir to the given directory', async () => {
@@ -32,7 +31,6 @@ describe('Config Loader', () => {
         outputDir: 'output',
         include: ['src/**'],
         exclude: ['vendor/**'],
-        embedding: { provider: 'openai', apiKey: 'test-key' },
       };
       await fs.writeFile(
         `/project/${CONFIG_FILENAME}`,
@@ -42,8 +40,6 @@ describe('Config Loader', () => {
       const config = await loadConfig('/project', fs);
       expect(config.outputDir).toBe('output');
       expect(config.include).toEqual(['src/**']);
-      expect(config.embedding.provider).toBe('openai');
-      expect(config.embedding.apiKey).toBe('test-key');
     });
 
     it('should merge loaded config with defaults', async () => {
@@ -58,7 +54,6 @@ describe('Config Loader', () => {
       // Defaults should fill in the rest
       expect(config.include).toEqual(DEFAULT_CONFIG.include);
       expect(config.exclude).toEqual(DEFAULT_CONFIG.exclude);
-      expect(config.embedding.provider).toBe('local');
     });
   });
 
@@ -69,7 +64,6 @@ describe('Config Loader', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
       };
 
       await saveConfig('/project', config, fs);
@@ -77,7 +71,7 @@ describe('Config Loader', () => {
       const raw = await fs.readFile(`/project/${CONFIG_FILENAME}`);
       const parsed = JSON.parse(raw);
       expect(parsed.rootDir).toBe('/project');
-      expect(parsed.embedding.provider).toBe('local');
+      expect(parsed.outputDir).toBe('.heury');
     });
   });
 
@@ -88,7 +82,6 @@ describe('Config Loader', () => {
         outputDir: '.heury',
         include: ['src/**/*.ts'],
         exclude: ['dist/**'],
-        embedding: { provider: 'openai', apiKey: 'sk-abc' },
       };
 
       await saveConfig('/project', original, fs);
@@ -98,8 +91,6 @@ describe('Config Loader', () => {
       expect(loaded.outputDir).toBe(original.outputDir);
       expect(loaded.include).toEqual(original.include);
       expect(loaded.exclude).toEqual(original.exclude);
-      expect(loaded.embedding.provider).toBe(original.embedding.provider);
-      expect(loaded.embedding.apiKey).toBe(original.embedding.apiKey);
     });
   });
 });

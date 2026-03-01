@@ -31,7 +31,6 @@ describe('initCommand', () => {
     const raw = await fs.readFile(configPath);
     const config = JSON.parse(raw);
     expect(config.outputDir).toBe('.heury');
-    expect(config.embedding.provider).toBe('local');
   });
 
   it('should handle already-initialized project gracefully', async () => {

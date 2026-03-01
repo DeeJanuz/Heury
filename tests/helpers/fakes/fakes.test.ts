@@ -13,8 +13,6 @@ import {
   InMemoryFileDependencyRepository,
   InMemoryEnvVariableRepository,
   InMemoryAnalysisRepository,
-  FakeEmbeddingProvider,
-  FakeVectorSearchService,
   InMemoryFileSystem,
   FakeConfigProvider,
 } from './index.js';
@@ -219,68 +217,6 @@ describe('InMemoryAnalysisRepository', () => {
   });
 });
 
-describe('FakeEmbeddingProvider', () => {
-  it('should return zero vector with correct dimensions', async () => {
-    const provider = new FakeEmbeddingProvider(384);
-    const embedding = await provider.generateEmbedding('hello');
-    expect(embedding).toHaveLength(384);
-    expect(embedding.every((v) => v === 0)).toBe(true);
-  });
-
-  it('should return correct dimensions via getDimensions', () => {
-    const provider = new FakeEmbeddingProvider(128);
-    expect(provider.getDimensions()).toBe(128);
-  });
-
-  it('should generate batch embeddings', async () => {
-    const provider = new FakeEmbeddingProvider(64);
-    const embeddings = await provider.generateEmbeddings(['a', 'b', 'c']);
-    expect(embeddings).toHaveLength(3);
-    expect(embeddings[0]).toHaveLength(64);
-  });
-});
-
-describe('FakeVectorSearchService', () => {
-  let service: FakeVectorSearchService;
-
-  beforeEach(() => {
-    service = new FakeVectorSearchService();
-  });
-
-  it('should index and search returning results sorted by score descending', async () => {
-    await service.index('a', [1, 0, 0], { label: 'a' });
-    await service.index('b', [0, 1, 0], { label: 'b' });
-    await service.index('c', [0.9, 0.1, 0], { label: 'c' });
-
-    const results = await service.search([1, 0, 0], 3);
-    expect(results).toHaveLength(3);
-    expect(results[0].id).toBe('a');
-    expect(results[0].score).toBeGreaterThan(results[1].score);
-  });
-
-  it('should respect limit parameter', async () => {
-    await service.index('a', [1, 0], {});
-    await service.index('b', [0, 1], {});
-    const results = await service.search([1, 0], 1);
-    expect(results).toHaveLength(1);
-  });
-
-  it('should delete indexed vectors', async () => {
-    await service.index('a', [1, 0], {});
-    await service.delete('a');
-    const results = await service.search([1, 0], 10);
-    expect(results).toHaveLength(0);
-  });
-
-  it('should clear all vectors', async () => {
-    await service.index('a', [1, 0], {});
-    await service.index('b', [0, 1], {});
-    await service.clear();
-    const results = await service.search([1, 0], 10);
-    expect(results).toHaveLength(0);
-  });
-});
-
 describe('InMemoryFileSystem', () => {
   let fs: InMemoryFileSystem;
 
@@ -335,7 +271,6 @@ describe('FakeConfigProvider', () => {
     expect(config.outputDir).toBeDefined();
     expect(config.include).toBeDefined();
     expect(config.exclude).toBeDefined();
-    expect(config.embedding).toBeDefined();
   });
 
   it('should load saved config', async () => {

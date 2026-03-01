@@ -3,17 +3,6 @@ export interface HeuryConfig {
   outputDir: string;
   include: string[];
   exclude: string[];
-  embedding: {
-    provider: 'local' | 'openai';
-    model?: string;
-    apiKey?: string;
-  };
-  enrichment?: {
-    provider: 'anthropic' | 'openai' | 'gemini';
-    apiKey?: string;
-    model?: string;
-    baseUrl?: string;
-  };
   manifestTokenBudget?: number;
 }
 

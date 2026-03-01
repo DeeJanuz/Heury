@@ -30,7 +30,6 @@ describe('analyzeCommand', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: [],
-        embedding: { provider: 'local' },
       }),
     );
     await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
@@ -59,7 +58,6 @@ describe('analyzeCommand', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: [],
-        embedding: { provider: 'local' },
       }),
     );
     await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
@@ -91,7 +89,6 @@ describe('analyzeCommand', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: [],
-        embedding: { provider: 'local' },
         manifestTokenBudget: 500,
       }),
     );
@@ -146,8 +143,7 @@ describe('analyzeCommand', () => {
           outputDir: '.heury',
           include: ['**/*'],
           exclude: [],
-          embedding: { provider: 'local' },
-        }),
+          }),
       );
       await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
 
@@ -179,8 +175,7 @@ describe('analyzeCommand', () => {
           outputDir: '.heury',
           include: ['**/*'],
           exclude: [],
-          embedding: { provider: 'local' },
-        }),
+          }),
       );
       await fs.writeFile('/project/added.ts', 'export const x = 1;');
 
@@ -217,8 +212,7 @@ describe('analyzeCommand', () => {
           outputDir: '.heury',
           include: ['**/*'],
           exclude: [],
-          embedding: { provider: 'local' },
-        }),
+          }),
       );
 
       mockGetChanged.mockRejectedValue(new Error('Not a git repository'));
@@ -246,8 +240,7 @@ describe('analyzeCommand', () => {
           outputDir: '.heury',
           include: ['**/*'],
           exclude: [],
-          embedding: { provider: 'local' },
-        }),
+          }),
       );
       await fs.writeFile('/project/index.ts', 'export function hello() { return "hi"; }');
 

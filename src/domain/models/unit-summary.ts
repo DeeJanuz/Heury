@@ -16,14 +16,15 @@ interface CreateUnitSummaryParams {
   summary: string;
   keyBehaviors?: string[];
   sideEffects?: string[];
-  providerModel: string;
+  providerModel?: string;
   generatedAt: string;
 }
 
 export function createUnitSummary(params: CreateUnitSummaryParams): UnitSummary {
   if (!params.codeUnitId) throw new Error('codeUnitId must not be empty');
   if (!params.summary) throw new Error('summary must not be empty');
-  if (!params.providerModel) throw new Error('providerModel must not be empty');
+  const providerModel = params.providerModel ?? 'mcp-client';
+  if (!providerModel) throw new Error('providerModel must not be empty');
   if (!params.generatedAt) throw new Error('generatedAt must not be empty');
   return {
     id: params.id ?? randomUUID(),
@@ -31,7 +32,7 @@ export function createUnitSummary(params: CreateUnitSummaryParams): UnitSummary 
     summary: params.summary,
     keyBehaviors: params.keyBehaviors ?? [],
     sideEffects: params.sideEffects ?? [],
-    providerModel: params.providerModel,
+    providerModel,
     generatedAt: params.generatedAt,
   };
 }

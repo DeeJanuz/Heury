@@ -13,7 +13,6 @@ import type {
   IFileDependencyRepository,
   IEnvVariableRepository,
   IFileSystem,
-  IVectorSearchService,
   IFunctionCallRepository,
   ITypeFieldRepository,
   IEventFlowRepository,
@@ -34,7 +33,6 @@ import { createGetDependenciesTool } from './tools/get-dependencies.js';
 import { createGetApiEndpointsTool } from './tools/get-api-endpoints.js';
 import { createGetFileContentTool } from './tools/get-file-content.js';
 import { createGetEnvVariablesTool } from './tools/get-env-variables.js';
-import { createVectorSearchTool } from './tools/vector-search.js';
 import { createTraceCallChainTool } from './tools/trace-call-chain.js';
 import { createGetEventFlowTool } from './tools/get-event-flow.js';
 import { createGetDataModelsTool } from './tools/get-data-models.js';
@@ -48,6 +46,8 @@ import { createPlanChangeImpactTool } from './tools/plan-change-impact.js';
 import { createGetImplementationContextTool } from './tools/get-implementation-context.js';
 import { createValidateAgainstPatternsTool } from './tools/validate-against-patterns.js';
 import { createGetTestPatternsTool } from './tools/get-test-patterns.js';
+import { createSetUnitSummariesTool } from './tools/set-unit-summaries.js';
+import { createGetUnenrichedUnitsTool } from './tools/get-unenriched-units.js';
 import type { ToolDefinition, ToolHandler } from './tool-registry.js';
 
 export interface McpServerDependencies {
@@ -55,7 +55,6 @@ export interface McpServerDependencies {
   dependencyRepo: IFileDependencyRepository;
   envVarRepo: IEnvVariableRepository;
   fileSystem: IFileSystem;
-  vectorSearch?: IVectorSearchService;
   // Deep analysis repos (optional)
   functionCallRepo?: IFunctionCallRepository;
   typeFieldRepo?: ITypeFieldRepository;
@@ -97,7 +96,6 @@ const toolFactories: readonly ToolFactory[] = [
   (deps) => createGetFileContentTool({ fileSystem: deps.fileSystem }),
   (deps) => createGetEnvVariablesTool({ envVarRepo: deps.envVarRepo }),
   (deps) => createGetPatternsByTypeTool({ codeUnitRepo: deps.codeUnitRepo }),
-  (deps) => createVectorSearchTool({ vectorSearch: deps.vectorSearch }),
   (deps) =>
     createPlanChangeImpactTool({
       dependencyRepo: deps.dependencyRepo,
@@ -129,6 +127,19 @@ const toolFactories: readonly ToolFactory[] = [
   (deps) =>
     deps.unitSummaryRepo
       ? createGetUnitSummariesTool({
+          unitSummaryRepo: deps.unitSummaryRepo,
+          codeUnitRepo: deps.codeUnitRepo,
+        })
+      : null,
+  (deps) =>
+    deps.unitSummaryRepo
+      ? createSetUnitSummariesTool({
+          unitSummaryRepo: deps.unitSummaryRepo,
+        })
+      : null,
+  (deps) =>
+    deps.unitSummaryRepo
+      ? createGetUnenrichedUnitsTool({
           unitSummaryRepo: deps.unitSummaryRepo,
           codeUnitRepo: deps.codeUnitRepo,
         })
@@ -184,7 +195,6 @@ const toolFactories: readonly ToolFactory[] = [
       dependencyRepo: deps.dependencyRepo,
       fileClusterRepo: deps.fileClusterRepo,
       patternTemplateRepo: deps.patternTemplateRepo,
-      vectorSearch: deps.vectorSearch,
     }),
   (deps) =>
     createGetTestPatternsTool({

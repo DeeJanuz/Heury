@@ -17,9 +17,6 @@ export class FakeConfigProvider implements IConfigProvider {
       outputDir: '.heury',
       include: ['**/*.ts', '**/*.js', '**/*.py', '**/*.go', '**/*.java', '**/*.rs', '**/*.cs'],
       exclude: ['node_modules', 'dist', '.git', 'vendor', 'target'],
-      embedding: {
-        provider: 'local',
-      },
     };
   }
 }

@@ -16,15 +16,6 @@ export {
   type DeepAnalysisResult,
 } from './deep-analysis-processor.js';
 export {
-  EmbeddingPipeline,
-  type EmbeddingPipelineDependencies,
-} from './embedding-pipeline.js';
-export {
-  enrichCodeUnits,
-  type EnrichmentOptions,
-  type EnrichmentResult,
-} from './enrichment-processor.js';
-export {
   estimateTokens,
   allocateBudget,
   truncateToTokenBudget,

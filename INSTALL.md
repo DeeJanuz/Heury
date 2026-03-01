@@ -125,33 +125,6 @@ This installs a `post-commit` git hook that runs `heury analyze --incremental`.
 
 Remove it with `heury hook remove`.
 
-## Optional: LLM enrichment
-
-Heury can use an LLM to generate natural-language summaries of code units. Add an `enrichment` block to `heury.config.json`:
-
-```json
-{
-  "enrichment": {
-    "provider": "anthropic",
-    "model": "claude-sonnet-4-20250514"
-  }
-}
-```
-
-Set your API key via environment variable:
-
-```sh
-export HEURY_LLM_API_KEY=your-api-key
-```
-
-Then run:
-
-```sh
-heury analyze --enrich
-```
-
-Supported providers: `anthropic`, `openai`, `gemini`.
-
 ## Troubleshooting
 
 **`better-sqlite3` fails to install**: You need a C/C++ compiler. See Prerequisites above.

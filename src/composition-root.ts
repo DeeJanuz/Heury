@@ -5,7 +5,7 @@
  */
 
 import type { AnalysisDependencies } from '@/application/index.js';
-import type { IFileSystem } from '@/domain/ports/index.js';
+import type { IFileSystem, IUnitSummaryRepository } from '@/domain/ports/index.js';
 import { DatabaseManager } from '@/adapters/storage/database.js';
 import { SqliteCodeUnitRepository } from '@/adapters/storage/sqlite-code-unit-repository.js';
 import { SqliteFileDependencyRepository } from '@/adapters/storage/sqlite-file-dependency-repository.js';
@@ -17,10 +17,11 @@ import { SqliteSchemaModelRepository } from '@/adapters/storage/sqlite-schema-mo
 import { SqliteGuardClauseRepository } from '@/adapters/storage/sqlite-guard-clause-repository.js';
 import { SqliteFileClusterRepository } from '@/adapters/storage/sqlite-file-cluster-repository.js';
 import { SqlitePatternTemplateRepository } from '@/adapters/storage/sqlite-pattern-template-repository.js';
+import { SqliteUnitSummaryRepository } from '@/adapters/storage/sqlite-unit-summary-repository.js';
 import { createLanguageRegistry } from '@/extraction/index.js';
 
 export interface CompositionResult {
-  readonly dependencies: AnalysisDependencies;
+  readonly dependencies: AnalysisDependencies & { unitSummaryRepo: IUnitSummaryRepository };
 }
 
 export async function createCompositionRoot(
@@ -33,7 +34,9 @@ export async function createCompositionRoot(
   dbManager.initialize();
   const db = dbManager.getDatabase();
 
-  const dependencies: AnalysisDependencies = {
+  const unitSummaryRepo = new SqliteUnitSummaryRepository(db);
+
+  const dependencies: AnalysisDependencies & { unitSummaryRepo: SqliteUnitSummaryRepository } = {
     codeUnitRepo: new SqliteCodeUnitRepository(db),
     dependencyRepo: new SqliteFileDependencyRepository(db),
     envVarRepo: new SqliteEnvVariableRepository(db),
@@ -46,6 +49,7 @@ export async function createCompositionRoot(
     guardClauseRepo: new SqliteGuardClauseRepository(db),
     fileClusterRepo: new SqliteFileClusterRepository(db),
     patternTemplateRepo: new SqlitePatternTemplateRepository(db),
+    unitSummaryRepo,
   };
 
   return { dependencies };

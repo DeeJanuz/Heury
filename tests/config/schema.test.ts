@@ -12,7 +12,6 @@ describe('Config Schema', () => {
       expect(DEFAULT_CONFIG.exclude).toContain('node_modules/**');
       expect(DEFAULT_CONFIG.exclude).toContain('dist/**');
       expect(DEFAULT_CONFIG.exclude).toContain('.git/**');
-      expect(DEFAULT_CONFIG.embedding.provider).toBe('local');
     });
   });
 
@@ -23,7 +22,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
       };
       expect(validateConfig(config)).toBe(true);
     });
@@ -33,7 +31,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: [],
-        embedding: { provider: 'local' },
       };
       expect(() => validateConfig(config)).toThrow('rootDir');
     });
@@ -44,20 +41,8 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*'],
         exclude: [],
-        embedding: { provider: 'local' },
       };
       expect(() => validateConfig(config)).toThrow('rootDir');
-    });
-
-    it('should reject config with invalid embedding provider', () => {
-      const config = {
-        rootDir: '.',
-        outputDir: '.heury',
-        include: ['**/*'],
-        exclude: [],
-        embedding: { provider: 'invalid' },
-      };
-      expect(() => validateConfig(config)).toThrow('embedding.provider');
     });
 
     it('should reject config with non-array include', () => {
@@ -66,7 +51,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: 'not-an-array',
         exclude: [],
-        embedding: { provider: 'local' },
       };
       expect(() => validateConfig(config)).toThrow('include');
     });
@@ -82,7 +66,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
         manifestTokenBudget: 5000,
       };
       expect(validateConfig(config)).toBe(true);
@@ -94,7 +77,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
       };
       expect(validateConfig(config)).toBe(true);
     });
@@ -105,7 +87,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
         manifestTokenBudget: 0,
       };
       expect(() => validateConfig(config)).toThrow('manifestTokenBudget');
@@ -117,7 +98,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
         manifestTokenBudget: -100,
       };
       expect(() => validateConfig(config)).toThrow('manifestTokenBudget');
@@ -129,7 +109,6 @@ describe('Config Schema', () => {
         outputDir: '.heury',
         include: ['**/*.ts'],
         exclude: ['node_modules/**'],
-        embedding: { provider: 'local' },
         manifestTokenBudget: 'large',
       };
       expect(() => validateConfig(config)).toThrow('manifestTokenBudget');
@@ -143,7 +122,6 @@ describe('Config Schema', () => {
       expect(result.outputDir).toBe(DEFAULT_CONFIG.outputDir);
       expect(result.include).toEqual(DEFAULT_CONFIG.include);
       expect(result.exclude).toEqual(DEFAULT_CONFIG.exclude);
-      expect(result.embedding.provider).toBe('local');
     });
 
     it('should preserve provided values', () => {
@@ -152,23 +130,11 @@ describe('Config Schema', () => {
         outputDir: 'out',
         include: ['src/**'],
         exclude: ['vendor/**'],
-        embedding: { provider: 'openai', apiKey: 'key-123' },
       });
       expect(result.rootDir).toBe('/custom');
       expect(result.outputDir).toBe('out');
       expect(result.include).toEqual(['src/**']);
       expect(result.exclude).toEqual(['vendor/**']);
-      expect(result.embedding.provider).toBe('openai');
-      expect(result.embedding.apiKey).toBe('key-123');
-    });
-
-    it('should deep-merge embedding object', () => {
-      const result = mergeWithDefaults({
-        embedding: { provider: 'openai' },
-      });
-      expect(result.embedding.provider).toBe('openai');
-      // Other embedding defaults preserved
-      expect(result.rootDir).toBe(DEFAULT_CONFIG.rootDir);
     });
 
     it('should pass through manifestTokenBudget when provided', () => {

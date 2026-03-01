@@ -25,8 +25,6 @@ program
   .option('-d, --dir <directory>', 'Project directory', '.')
   .option('--full', 'Force full re-analysis', false)
   .option('--incremental', 'Only analyze files changed in the last commit')
-  .option('--enrich', 'Enrich code units with LLM summaries', false)
-  .option('--enrich-force', 'Re-enrich all units even if summaries exist', false)
   .action((options) => analyzeCommand(options));
 
 const hook = program

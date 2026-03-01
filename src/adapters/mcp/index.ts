@@ -11,5 +11,4 @@ export {
   createGetDependenciesTool,
   createGetApiEndpointsTool,
   createGetFileContentTool,
-  createVectorSearchTool,
 } from './tools/index.js';

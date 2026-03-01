@@ -25,7 +25,14 @@ export async function serveCommand(
         dependencyRepo: dependencies.dependencyRepo,
         envVarRepo: dependencies.envVarRepo,
         fileSystem: fs,
+        functionCallRepo: dependencies.functionCallRepo,
+        typeFieldRepo: dependencies.typeFieldRepo,
+        eventFlowRepo: dependencies.eventFlowRepo,
+        schemaModelRepo: dependencies.schemaModelRepo,
+        unitSummaryRepo: dependencies.unitSummaryRepo,
         guardClauseRepo: dependencies.guardClauseRepo,
+        fileClusterRepo: dependencies.fileClusterRepo,
+        patternTemplateRepo: dependencies.patternTemplateRepo,
       });
     } else {
       console.error(`Unsupported transport: ${options.transport}. Use "stdio".`);

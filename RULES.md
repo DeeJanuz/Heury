@@ -38,7 +38,6 @@ You have access to heury MCP tools that provide pre-analyzed codebase intelligen
 - `search-codebase` — Full-text search across all indexed code units.
 - `get-code-units` — Get code units (functions, classes, interfaces) filtered by file, type, or name.
 - `get-file-content` — Read a file with heury's structural annotations.
-- `vector-search` — Semantic search across code units using natural language queries.
 
 ### Structural analysis
 - `get-dependencies` — Import/export dependency graph for a file or module.
@@ -63,8 +62,10 @@ You have access to heury MCP tools that provide pre-analyzed codebase intelligen
 - `get-feature-area` — Get all code related to a feature area (groups files, endpoints, models, and patterns).
 - `get-implementation-context` — Combined context for implementing a change: relevant code units, patterns, and conventions.
 
-### Enrichment (if configured)
+### Enrichment
 - `get-unit-summaries` — LLM-generated natural language summaries of code units.
+- `get-unenriched-units` — Exported code units that don't yet have summaries. Use to discover what needs enrichment.
+- `set-unit-summaries` — Submit summaries for code units. The agent analyzes units and submits structured summaries.
 
 ## Workflow
 
@@ -74,6 +75,7 @@ You have access to heury MCP tools that provide pre-analyzed codebase intelligen
 4. **Plan**: `plan-change-impact` before making changes
 5. **Conform**: `get-patterns-by-type`, `get-test-patterns` to match conventions
 6. **Implement**: Write code that follows the patterns you discovered
+7. **Enrich** (optional): After analysis, call `get-unenriched-units` to find code units without summaries, then call `set-unit-summaries` to submit structured summaries for them
 
 ## Notes
 

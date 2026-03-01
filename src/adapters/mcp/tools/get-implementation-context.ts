@@ -10,7 +10,6 @@ import type {
   IFileDependencyRepository,
   IFileClusterRepository,
   IPatternTemplateRepository,
-  IVectorSearchService,
 } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { extractSourceForUnits } from '../source-extractor.js';
@@ -24,7 +23,6 @@ interface Dependencies {
   dependencyRepo: IFileDependencyRepository;
   fileClusterRepo?: IFileClusterRepository;
   patternTemplateRepo?: IPatternTemplateRepository;
-  vectorSearch?: IVectorSearchService;
 }
 
 export function createGetImplementationContextTool(deps: Dependencies): {
