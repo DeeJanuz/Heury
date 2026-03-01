@@ -12,8 +12,7 @@ LLM agents waste context reading files to understand a codebase. Heury pre-analy
 - Detects patterns: singleton, factory, observer, middleware, repository, decorator, and more
 - Supports JavaScript/TypeScript, Python, Go, Java, Rust, and C#
 - Stores everything in a local SQLite database
-- Exposes 20+ MCP tools for agents to query the analysis
-- Generates token-budgeted manifest files for quick orientation
+- Exposes MCP tools for agents to query the analysis
 ## Quick start
 
 ```sh
