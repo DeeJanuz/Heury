@@ -4,6 +4,7 @@ import {
   InMemoryCodeUnitRepository,
   InMemoryFileDependencyRepository,
   InMemoryFileClusterRepository,
+  InMemoryFileSystem,
 } from '../../../../tests/helpers/fakes/index.js';
 import { createCodeUnit, CodeUnitType } from '@/domain/models/code-unit.js';
 import { createFileDependency, ImportType } from '@/domain/models/file-dependency.js';
@@ -455,6 +456,74 @@ describe('plan-change-impact tool', () => {
       const result = await handler({ file_path: 'src/services/auth.ts' });
       const parsed = JSON.parse(result.content[0].text);
       expect(parsed.meta).toBeDefined();
+    });
+  });
+
+  describe('include_source', () => {
+    let fileSystem: InMemoryFileSystem;
+
+    beforeEach(async () => {
+      fileSystem = new InMemoryFileSystem();
+      const authLines = Array.from({ length: 50 }, (_, i) => `auth-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/auth.ts', authLines.join('\n'));
+
+      const loginLines = Array.from({ length: 30 }, (_, i) => `login-line-${i + 1}`);
+      await fileSystem.writeFile('src/routes/login.ts', loginLines.join('\n'));
+
+      const registerLines = Array.from({ length: 40 }, (_, i) => `register-line-${i + 1}`);
+      await fileSystem.writeFile('src/routes/register.ts', registerLines.join('\n'));
+
+      const tool = createPlanChangeImpactTool({
+        dependencyRepo,
+        codeUnitRepo,
+        fileClusterRepo,
+        fileSystem,
+      });
+      handler = tool.handler;
+    });
+
+    it('should include source for the target unit when include_source is true', async () => {
+      const result = await handler({ unit_id: 'unit-target', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.target.source).toBeDefined();
+      expect(parsed.data.target.source).toContain('auth-line-10');
+      expect(parsed.data.target.source).toContain('auth-line-50');
+    });
+
+    it('should include source for affected endpoint handler units', async () => {
+      const result = await handler({ file_path: 'src/services/auth.ts', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      // The login endpoint is an affected endpoint
+      const loginEndpoint = parsed.data.affectedEndpoints.find(
+        (e: Record<string, unknown>) => e.name === 'POST /login',
+      );
+      expect(loginEndpoint).toBeDefined();
+      expect(loginEndpoint.source).toBeDefined();
+      expect(loginEndpoint.source).toContain('login-line-1');
+    });
+
+    it('should not include source when include_source is false', async () => {
+      const result = await handler({ unit_id: 'unit-target', include_source: false });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.target).not.toHaveProperty('source');
+    });
+
+    it('should not include source when include_source is omitted', async () => {
+      const result = await handler({ unit_id: 'unit-target' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.target).not.toHaveProperty('source');
+    });
+
+    it('should include target source when resolving by file_path', async () => {
+      const result = await handler({ file_path: 'src/services/auth.ts', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.target.source).toBeDefined();
+      expect(parsed.data.target.source).toContain('auth-line-10');
     });
   });
 });

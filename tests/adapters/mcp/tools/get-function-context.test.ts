@@ -5,6 +5,7 @@ import {
   InMemoryFunctionCallRepository,
   InMemoryTypeFieldRepository,
   InMemoryEventFlowRepository,
+  InMemoryFileSystem,
 } from '../../../../tests/helpers/fakes/index.js';
 import {
   createCodeUnit,
@@ -291,5 +292,74 @@ describe('get-function-context tool', () => {
     expect(parsed.data.incomingCalls).toHaveLength(1);
     expect(parsed.data.eventFlows).toHaveLength(0);
     expect(parsed.data.typeFields).toHaveLength(0);
+  });
+
+  describe('include_source', () => {
+    let fileSystem: InMemoryFileSystem;
+
+    beforeEach(async () => {
+      fileSystem = new InMemoryFileSystem();
+      // Write file content matching the code units
+      const orderLines = Array.from({ length: 30 }, (_, i) => `order-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/order.ts', orderLines.join('\n'));
+
+      const validationLines = Array.from({ length: 20 }, (_, i) => `validation-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/validation.ts', validationLines.join('\n'));
+
+      const apiLines = Array.from({ length: 40 }, (_, i) => `api-line-${i + 1}`);
+      await fileSystem.writeFile('src/handlers/api.ts', apiLines.join('\n'));
+
+      const tool = createGetFunctionContextTool({
+        codeUnitRepo,
+        functionCallRepo,
+        typeFieldRepo,
+        eventFlowRepo,
+        fileSystem,
+      });
+      handler = tool.handler;
+    });
+
+    it('should include source for the target unit when include_source is true', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.unit.source).toBeDefined();
+      expect(parsed.data.unit.source).toContain('order-line-10');
+      expect(parsed.data.unit.source).toContain('order-line-30');
+    });
+
+    it('should include source for callee units in outgoing calls', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.outgoingCalls).toHaveLength(1);
+      expect(parsed.data.outgoingCalls[0].source).toBeDefined();
+      expect(parsed.data.outgoingCalls[0].source).toContain('validation-line-5');
+    });
+
+    it('should include source for caller units in incoming calls', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.incomingCalls).toHaveLength(1);
+      expect(parsed.data.incomingCalls[0].source).toBeDefined();
+      expect(parsed.data.incomingCalls[0].source).toContain('api-line-1');
+    });
+
+    it('should not include source when include_source is false', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: false });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.unit).not.toHaveProperty('source');
+      expect(parsed.data.outgoingCalls[0]).not.toHaveProperty('source');
+      expect(parsed.data.incomingCalls[0]).not.toHaveProperty('source');
+    });
+
+    it('should not include source when include_source is omitted', async () => {
+      const result = await handler({ unit_id: 'unit-a' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.unit).not.toHaveProperty('source');
+    });
   });
 });

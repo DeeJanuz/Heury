@@ -8,17 +8,20 @@ import type {
   IFileDependencyRepository,
   ICodeUnitRepository,
   IFileClusterRepository,
+  IFileSystem,
 } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { computeTransitiveDeps } from '@/application/graph-analysis/transitive-deps.js';
 import { detectCircularDeps } from '@/application/graph-analysis/circular-deps.js';
 import { buildToolResponse, buildErrorResponse } from '../response-builder.js';
 import type { ToolDefinition, ToolHandler } from '../tool-registry.js';
+import { extractSourceForUnit } from '../source-extractor.js';
 
 interface Dependencies {
   dependencyRepo: IFileDependencyRepository;
   codeUnitRepo: ICodeUnitRepository;
   fileClusterRepo?: IFileClusterRepository;
+  fileSystem?: IFileSystem;
 }
 
 interface TargetOutput {
@@ -82,6 +85,10 @@ export function createPlanChangeImpactTool(deps: Dependencies): {
           type: 'number',
           description: 'Maximum depth for transitive dependency traversal (default: 5)',
         },
+        include_source: {
+          type: 'boolean',
+          description: 'Include source code for the target and affected endpoints (default: false)',
+        },
       },
     },
   };
@@ -91,6 +98,7 @@ export function createPlanChangeImpactTool(deps: Dependencies): {
     const unitId = typeof args.unit_id === 'string' ? args.unit_id : undefined;
     const functionName = typeof args.function_name === 'string' ? args.function_name : undefined;
     const depth = typeof args.depth === 'number' ? args.depth : 5;
+    const includeSource = args.include_source === true;
 
     if (!filePath && !unitId && !functionName) {
       return buildErrorResponse(
@@ -136,7 +144,7 @@ export function createPlanChangeImpactTool(deps: Dependencies): {
     const affectedCodeUnits = collectCodeUnitsForFiles(deps.codeUnitRepo, dependentFilePaths);
 
     // 8. Affected endpoints
-    const affectedEndpoints = extractEndpoints(affectedCodeUnits);
+    const affectedEndpointsRaw = extractEndpoints(affectedCodeUnits);
 
     // 9. Affected patterns
     const affectedPatterns = aggregatePatterns(affectedCodeUnits);
@@ -146,11 +154,47 @@ export function createPlanChangeImpactTool(deps: Dependencies): {
       directDependents.length,
       allDependentFiles.length,
       relevantCircular.length,
-      affectedEndpoints.length,
+      affectedEndpointsRaw.length,
     );
 
+    // 11. Source enrichment
+    const targetData: Record<string, unknown> = { ...target };
+    let affectedEndpoints: Record<string, unknown>[] = affectedEndpointsRaw;
+
+    if (includeSource && deps.fileSystem) {
+      // Source for the target unit
+      const resolvedUnit = resolveTargetUnit(deps.codeUnitRepo, { filePath, unitId, functionName });
+      if (resolvedUnit) {
+        targetData.source = await extractSourceForUnit(deps.fileSystem, {
+          filePath: resolvedUnit.filePath,
+          lineStart: resolvedUnit.lineStart,
+          lineEnd: resolvedUnit.lineEnd,
+        });
+      }
+
+      // Source for affected endpoint handler code units
+      affectedEndpoints = await Promise.all(
+        affectedEndpointsRaw.map(async (ep) => {
+          const handlerUnit = affectedCodeUnits.find(
+            (u) =>
+              u.filePath === ep.filePath &&
+              u.patterns.some((p) => p.patternType === 'API_ENDPOINT' && p.patternValue === ep.name),
+          );
+          if (handlerUnit) {
+            const source = await extractSourceForUnit(deps.fileSystem!, {
+              filePath: handlerUnit.filePath,
+              lineStart: handlerUnit.lineStart,
+              lineEnd: handlerUnit.lineEnd,
+            });
+            return { ...ep, source };
+          }
+          return { ...ep };
+        }),
+      );
+    }
+
     const data = {
-      target,
+      target: targetData,
       directDependents,
       transitiveDependents: {
         count: allDependentFiles.length,
@@ -226,6 +270,23 @@ function buildTargetFromUnit(unit: CodeUnit): TargetOutput {
     target.signature = unit.signature;
   }
   return target;
+}
+
+function resolveTargetUnit(
+  codeUnitRepo: ICodeUnitRepository,
+  input: { filePath?: string; unitId?: string; functionName?: string },
+): CodeUnit | undefined {
+  if (input.unitId) {
+    return codeUnitRepo.findById(input.unitId);
+  }
+  if (input.functionName) {
+    return codeUnitRepo.findAll().find((u) => u.name === input.functionName);
+  }
+  if (input.filePath) {
+    const units = codeUnitRepo.findByFilePath(input.filePath);
+    return units.length > 0 ? units[0] : undefined;
+  }
+  return undefined;
 }
 
 function resolveClusterMembership(

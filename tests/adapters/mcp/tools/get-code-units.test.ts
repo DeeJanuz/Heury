@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createGetCodeUnitsTool } from '@/adapters/mcp/tools/get-code-units.js';
-import { InMemoryCodeUnitRepository } from '../../../../tests/helpers/fakes/index.js';
+import { InMemoryCodeUnitRepository, InMemoryFileSystem } from '../../../../tests/helpers/fakes/index.js';
 import { createCodeUnit, CodeUnitType } from '@/domain/models/index.js';
 
 describe('get-code-units tool', () => {
@@ -86,5 +86,61 @@ describe('get-code-units tool', () => {
     const compactKeys = Object.keys(compact.data[0]);
     const fullKeys = Object.keys(full.data[0]);
     expect(compactKeys.length).toBeLessThan(fullKeys.length);
+  });
+
+  describe('include_source', () => {
+    let fileSystem: InMemoryFileSystem;
+
+    beforeEach(async () => {
+      fileSystem = new InMemoryFileSystem();
+      await fileSystem.writeFile('src/a.ts', 'function fnA() {\n  return 1;\n}\n// line4\n// line5\n// line6\n// line7\n// line8\n// line9\n// line10');
+      await fileSystem.writeFile('src/b.ts', Array.from({ length: 50 }, (_, i) => `line${i + 1}`).join('\n'));
+      await fileSystem.writeFile('src/c.py', 'def fn_c():\n    pass\n# line3\n# line4\n# line5');
+
+      const tool = createGetCodeUnitsTool({ codeUnitRepo, fileSystem });
+      handler = tool.handler;
+    });
+
+    it('should include source in compact format when include_source is true', async () => {
+      const result = await handler({ name: 'fnA', format: 'compact', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].source).toBeDefined();
+      expect(parsed.data[0].source).toContain('function fnA');
+    });
+
+    it('should include source in full format when include_source is true', async () => {
+      const result = await handler({ name: 'fnA', format: 'full', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0].source).toBeDefined();
+      expect(parsed.data[0].source).toContain('function fnA');
+    });
+
+    it('should not include source when include_source is false', async () => {
+      const result = await handler({ name: 'fnA', include_source: false });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0]).not.toHaveProperty('source');
+    });
+
+    it('should not include source when include_source is omitted', async () => {
+      const result = await handler({ name: 'fnA' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0]).not.toHaveProperty('source');
+    });
+
+    it('should only fetch source for the paginated subset', async () => {
+      const result = await handler({ limit: 1, offset: 0, include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data).toHaveLength(1);
+      expect(parsed.data[0]).toHaveProperty('source');
+    });
   });
 });

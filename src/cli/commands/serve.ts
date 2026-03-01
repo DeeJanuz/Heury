@@ -11,7 +11,7 @@ export async function serveCommand(
   options: { dir: string; transport: string },
   fileSystem?: IFileSystem,
 ): Promise<void> {
-  const fs = fileSystem ?? new NodeFileSystem();
+  const fs = fileSystem ?? new NodeFileSystem(options.dir);
 
   try {
     const { dependencies } = await createCompositionRoot(fs, {

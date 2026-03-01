@@ -3,14 +3,16 @@
  * Get code units with filtering.
  */
 
-import type { ICodeUnitRepository } from '@/domain/ports/index.js';
+import type { ICodeUnitRepository, IFileSystem } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { buildToolResponse } from '../response-builder.js';
 import { stripDefaults } from '../response-builder.js';
 import type { ToolDefinition, ToolHandler } from '../tool-registry.js';
+import { extractSourceForUnits } from '../source-extractor.js';
 
 interface Dependencies {
   codeUnitRepo: ICodeUnitRepository;
+  fileSystem?: IFileSystem;
 }
 
 function toCompact(unit: CodeUnit): Record<string, unknown> {
@@ -65,6 +67,7 @@ export function createGetCodeUnitsTool(deps: Dependencies): {
         limit: { type: 'number', description: 'Max results (default 100)' },
         offset: { type: 'number', description: 'Offset for pagination' },
         format: { type: 'string', enum: ['compact', 'full'], description: 'Response format (default: compact)' },
+        include_source: { type: 'boolean', description: 'Include source code for each result (default: false)' },
       },
     },
   };
@@ -97,9 +100,25 @@ export function createGetCodeUnitsTool(deps: Dependencies): {
     const limit = typeof args.limit === 'number' ? args.limit : 100;
     units = units.slice(offset, offset + limit);
 
+    const includeSource = args.include_source === true;
     const format = args.format === 'full' ? 'full' : 'compact';
     const mapper = format === 'full' ? toFull : toCompact;
-    const data = units.map(mapper);
+
+    let sources: (string | null)[] | undefined;
+    if (includeSource && deps.fileSystem) {
+      sources = await extractSourceForUnits(
+        deps.fileSystem,
+        units.map((u) => ({ filePath: u.filePath, lineStart: u.lineStart, lineEnd: u.lineEnd })),
+      );
+    }
+
+    const data = units.map((u, i) => {
+      const entry = mapper(u);
+      if (sources) {
+        entry.source = sources[i];
+      }
+      return entry;
+    });
 
     return buildToolResponse(data, {
       totalCount,

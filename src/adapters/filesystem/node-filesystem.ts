@@ -17,8 +17,11 @@ import { join, relative } from 'node:path';
 const SKIP_DIRS = new Set(['.git', 'node_modules']);
 
 export class NodeFileSystem implements IFileSystem {
+  constructor(private readonly rootDir?: string) {}
+
   async readFile(path: string): Promise<string> {
-    return readFile(path, 'utf-8');
+    const resolved = this.rootDir && !path.startsWith('/') ? join(this.rootDir, path) : path;
+    return readFile(resolved, 'utf-8');
   }
 
   async writeFile(path: string, content: string): Promise<void> {

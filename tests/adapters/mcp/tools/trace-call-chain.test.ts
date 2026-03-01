@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { createTraceCallChainTool } from '@/adapters/mcp/tools/trace-call-chain.js';
-import { InMemoryCodeUnitRepository, InMemoryFunctionCallRepository } from '../../../../tests/helpers/fakes/index.js';
+import { InMemoryCodeUnitRepository, InMemoryFunctionCallRepository, InMemoryFileSystem } from '../../../../tests/helpers/fakes/index.js';
 import { createCodeUnit, CodeUnitType, createFunctionCall } from '@/domain/models/index.js';
 
 describe('trace-call-chain tool', () => {
@@ -200,5 +200,62 @@ describe('trace-call-chain tool', () => {
 
     expect(parsed.data.chain[0].isAsync).toBe(false);
     expect(parsed.data.chain[0].children[0].isAsync).toBe(true);
+  });
+
+  describe('include_source', () => {
+    let fileSystem: InMemoryFileSystem;
+
+    beforeEach(async () => {
+      fileSystem = new InMemoryFileSystem();
+      const orderLines = Array.from({ length: 30 }, (_, i) => `order-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/order.ts', orderLines.join('\n'));
+
+      const validationLines = Array.from({ length: 20 }, (_, i) => `validation-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/validation.ts', validationLines.join('\n'));
+
+      const inventoryLines = Array.from({ length: 15 }, (_, i) => `inventory-line-${i + 1}`);
+      await fileSystem.writeFile('src/services/inventory.ts', inventoryLines.join('\n'));
+
+      const apiLines = Array.from({ length: 40 }, (_, i) => `api-line-${i + 1}`);
+      await fileSystem.writeFile('src/handlers/api.ts', apiLines.join('\n'));
+
+      const tool = createTraceCallChainTool({ codeUnitRepo, functionCallRepo, fileSystem });
+      handler = tool.handler;
+    });
+
+    it('should include source for chain nodes when include_source is true', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      // Callee validateOrder
+      expect(parsed.data.chain[0].source).toBeDefined();
+      expect(parsed.data.chain[0].source).toContain('validation-line-5');
+
+      // Nested callee checkStock
+      expect(parsed.data.chain[0].children[0].source).toBeDefined();
+      expect(parsed.data.chain[0].children[0].source).toContain('inventory-line-1');
+    });
+
+    it('should include source for caller chain nodes', async () => {
+      const result = await handler({ unit_id: 'unit-a', direction: 'callers', include_source: true });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.chain[0].source).toBeDefined();
+      expect(parsed.data.chain[0].source).toContain('api-line-1');
+    });
+
+    it('should not include source when include_source is false', async () => {
+      const result = await handler({ unit_id: 'unit-a', include_source: false });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.chain[0]).not.toHaveProperty('source');
+    });
+
+    it('should not include source when include_source is omitted', async () => {
+      const result = await handler({ unit_id: 'unit-a' });
+      const parsed = JSON.parse(result.content[0].text);
+
+      expect(parsed.data.chain[0]).not.toHaveProperty('source');
+    });
   });
 });

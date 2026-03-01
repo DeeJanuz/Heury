@@ -3,12 +3,14 @@
  * Text search across code units by name, file path, or pattern value.
  */
 
-import type { ICodeUnitRepository } from '@/domain/ports/index.js';
+import type { ICodeUnitRepository, IFileSystem } from '@/domain/ports/index.js';
 import { buildToolResponse } from '../response-builder.js';
 import type { ToolDefinition, ToolHandler } from '../tool-registry.js';
+import { extractSourceForUnits } from '../source-extractor.js';
 
 interface Dependencies {
   codeUnitRepo: ICodeUnitRepository;
+  fileSystem?: IFileSystem;
 }
 
 export function createSearchCodebaseTool(deps: Dependencies): {
@@ -24,6 +26,7 @@ export function createSearchCodebaseTool(deps: Dependencies): {
         query: { type: 'string', description: 'Search query string' },
         type: { type: 'string', enum: ['code_unit', 'pattern', 'file'], description: 'Search type (default: code_unit)' },
         limit: { type: 'number', description: 'Max results (default 20)' },
+        include_source: { type: 'boolean', description: 'Include source code for each result (default: false)' },
       },
       required: ['query'],
     },
@@ -33,6 +36,7 @@ export function createSearchCodebaseTool(deps: Dependencies): {
     const query = String(args.query).toLowerCase();
     const searchType = (args.type as string) ?? 'code_unit';
     const limit = typeof args.limit === 'number' ? args.limit : 20;
+    const includeSource = args.include_source === true;
 
     const allUnits = deps.codeUnitRepo.findAll();
     let results;
@@ -54,16 +58,30 @@ export function createSearchCodebaseTool(deps: Dependencies): {
 
     const limited = results.slice(0, limit);
 
-    const data = limited.map((u) => ({
-      id: u.id,
-      name: u.name,
-      unitType: u.unitType,
-      filePath: u.filePath,
-      lineStart: u.lineStart,
-      lineEnd: u.lineEnd,
-      language: u.language,
-      signature: u.signature,
-    }));
+    let sources: (string | null)[] | undefined;
+    if (includeSource && deps.fileSystem) {
+      sources = await extractSourceForUnits(
+        deps.fileSystem,
+        limited.map((u) => ({ filePath: u.filePath, lineStart: u.lineStart, lineEnd: u.lineEnd })),
+      );
+    }
+
+    const data = limited.map((u, i) => {
+      const entry: Record<string, unknown> = {
+        id: u.id,
+        name: u.name,
+        unitType: u.unitType,
+        filePath: u.filePath,
+        lineStart: u.lineStart,
+        lineEnd: u.lineEnd,
+        language: u.language,
+        signature: u.signature,
+      };
+      if (sources) {
+        entry.source = sources[i];
+      }
+      return entry;
+    });
 
     if (data.length === 0) {
       return buildToolResponse(data, {

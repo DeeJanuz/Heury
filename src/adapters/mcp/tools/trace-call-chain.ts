@@ -3,14 +3,16 @@
  * Trace function call chains forward (callees) or backward (callers).
  */
 
-import type { IFunctionCallRepository, ICodeUnitRepository } from '@/domain/ports/index.js';
+import type { IFunctionCallRepository, ICodeUnitRepository, IFileSystem } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { buildToolResponse, buildErrorResponse } from '../response-builder.js';
 import type { ToolDefinition, ToolHandler } from '../tool-registry.js';
+import { extractSourceForUnit } from '../source-extractor.js';
 
 interface Dependencies {
   functionCallRepo: IFunctionCallRepository;
   codeUnitRepo: ICodeUnitRepository;
+  fileSystem?: IFileSystem;
 }
 
 interface ChainNode {
@@ -20,6 +22,7 @@ interface ChainNode {
   isAsync: boolean;
   depth: number;
   children: ChainNode[];
+  source?: string;
 }
 
 function traceCallees(
@@ -110,6 +113,31 @@ function traceCallers(
   return nodes;
 }
 
+async function enrichChainWithSource(
+  nodes: ChainNode[],
+  codeUnitRepo: ICodeUnitRepository,
+  fileSystem: IFileSystem,
+): Promise<void> {
+  for (const node of nodes) {
+    if (node.unitId) {
+      const codeUnit = codeUnitRepo.findById(node.unitId);
+      if (codeUnit) {
+        const source = await extractSourceForUnit(fileSystem, {
+          filePath: codeUnit.filePath,
+          lineStart: codeUnit.lineStart,
+          lineEnd: codeUnit.lineEnd,
+        });
+        if (source !== null) {
+          node.source = source;
+        }
+      }
+    }
+    if (node.children.length > 0) {
+      await enrichChainWithSource(node.children, codeUnitRepo, fileSystem);
+    }
+  }
+}
+
 export function createTraceCallChainTool(deps: Dependencies): {
   definition: ToolDefinition;
   handler: ToolHandler;
@@ -137,6 +165,10 @@ export function createTraceCallChainTool(deps: Dependencies): {
         depth: {
           type: 'number',
           description: 'Max depth to trace (default: 3, max: 10)',
+        },
+        include_source: {
+          type: 'boolean',
+          description: 'Include source code for each chain node (default: false)',
         },
       },
     },
@@ -185,6 +217,11 @@ export function createTraceCallChainTool(deps: Dependencies): {
       direction === 'callers'
         ? traceCallers(unit!, 0, maxDepth, deps.functionCallRepo, deps.codeUnitRepo, visited)
         : traceCallees(unit!.id, 0, maxDepth, deps.functionCallRepo, deps.codeUnitRepo, visited);
+
+    const includeSource = args.include_source === true;
+    if (includeSource && deps.fileSystem) {
+      await enrichChainWithSource(chain, deps.codeUnitRepo, deps.fileSystem);
+    }
 
     return buildToolResponse({ root, chain });
   };

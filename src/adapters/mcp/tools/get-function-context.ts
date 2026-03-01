@@ -9,10 +9,12 @@ import type {
   ITypeFieldRepository,
   IEventFlowRepository,
   IUnitSummaryRepository,
+  IFileSystem,
 } from '@/domain/ports/index.js';
 import type { CodeUnit } from '@/domain/models/index.js';
 import { buildToolResponse, buildErrorResponse } from '../response-builder.js';
 import type { ToolDefinition, ToolHandler } from '../tool-registry.js';
+import { extractSourceForUnit } from '../source-extractor.js';
 
 interface Dependencies {
   codeUnitRepo: ICodeUnitRepository;
@@ -20,6 +22,7 @@ interface Dependencies {
   typeFieldRepo: ITypeFieldRepository;
   eventFlowRepo: IEventFlowRepository;
   unitSummaryRepo?: IUnitSummaryRepository;
+  fileSystem?: IFileSystem;
 }
 
 export function createGetFunctionContextTool(deps: Dependencies): {
@@ -45,6 +48,10 @@ export function createGetFunctionContextTool(deps: Dependencies): {
           type: 'string',
           description: 'File path to disambiguate function_name',
         },
+        include_source: {
+          type: 'boolean',
+          description: 'Include source code for the function and its callers/callees (default: false)',
+        },
       },
     },
   };
@@ -53,6 +60,7 @@ export function createGetFunctionContextTool(deps: Dependencies): {
     const unitId = args.unit_id as string | undefined;
     const functionName = args.function_name as string | undefined;
     const filePath = args.file_path as string | undefined;
+    const includeSource = args.include_source === true;
 
     if (!unitId && !functionName) {
       return buildErrorResponse(
@@ -158,22 +166,68 @@ export function createGetFunctionContextTool(deps: Dependencies): {
         }
       : null;
 
-    const data = {
-      unit: {
-        id: unit!.id,
-        name: unit!.name,
-        unitType: unit!.unitType,
+    const unitData: Record<string, unknown> = {
+      id: unit!.id,
+      name: unit!.name,
+      unitType: unit!.unitType,
+      filePath: unit!.filePath,
+      lineStart: unit!.lineStart,
+      lineEnd: unit!.lineEnd,
+      signature: unit!.signature,
+      isAsync: unit!.isAsync,
+      isExported: unit!.isExported,
+      language: unit!.language,
+      complexityScore: unit!.complexityScore,
+    };
+
+    let outgoingCallsData: Record<string, unknown>[] = outgoingCalls;
+    let incomingCallsData: Record<string, unknown>[] = incomingCalls;
+
+    if (includeSource && deps.fileSystem) {
+      // Source for the target unit
+      unitData.source = await extractSourceForUnit(deps.fileSystem, {
         filePath: unit!.filePath,
         lineStart: unit!.lineStart,
         lineEnd: unit!.lineEnd,
-        signature: unit!.signature,
-        isAsync: unit!.isAsync,
-        isExported: unit!.isExported,
-        language: unit!.language,
-        complexityScore: unit!.complexityScore,
-      },
-      outgoingCalls,
-      incomingCalls,
+      });
+
+      // Source for callee units (outgoing calls)
+      outgoingCallsData = await Promise.all(
+        outgoingCalls.map(async (call) => {
+          const calleeUnit = call.calleeUnitId
+            ? unitMap.get(call.calleeUnitId)
+            : undefined;
+          const source = calleeUnit
+            ? await extractSourceForUnit(deps.fileSystem!, {
+                filePath: calleeUnit.filePath,
+                lineStart: calleeUnit.lineStart,
+                lineEnd: calleeUnit.lineEnd,
+              })
+            : null;
+          return { ...call, source };
+        }),
+      );
+
+      // Source for caller units (incoming calls)
+      incomingCallsData = await Promise.all(
+        incomingCalls.map(async (call) => {
+          const callerUnit = unitMap.get(call.callerUnitId);
+          const source = callerUnit
+            ? await extractSourceForUnit(deps.fileSystem!, {
+                filePath: callerUnit.filePath,
+                lineStart: callerUnit.lineStart,
+                lineEnd: callerUnit.lineEnd,
+              })
+            : null;
+          return { ...call, source };
+        }),
+      );
+    }
+
+    const data = {
+      unit: unitData,
+      outgoingCalls: outgoingCallsData,
+      incomingCalls: incomingCallsData,
       eventFlows,
       typeFields,
       summary: summaryData,
