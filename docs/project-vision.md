@@ -275,7 +275,7 @@ npx heury init
 | `npx heury hook install` | Install a post-commit git hook that runs incremental analysis automatically |
 | `npx heury hook remove` | Remove the heury post-commit git hook |
 | `npx heury serve` | Start MCP server in HTTP mode |
-| `npx heury ui` | Start local web UI viewer for browsing analysis data (default port 3939) |
+| `npx heury ui` | Start local web UI viewer for browsing analysis data (default port 3939). Use `--host 0.0.0.0` for remote access. |
 | `npx heury watch` | Watch mode for continuous analysis (future) |
 
 ---

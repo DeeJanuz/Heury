@@ -501,6 +501,8 @@ Add a `heury ui` command that starts a local Express server serving a pre-built 
 
 4. **Dependencies**: Express 5 added as a production dependency. React, React Flow, Vite, and dagre added as dev dependencies (only needed at build time).
 
+5. **Network binding**: Binds to `localhost` by default (local-only access). Supports `--host 0.0.0.0` flag for remote access when needed (e.g., accessing from another machine on the network).
+
 #### Rationale
 **Why a local Express server rather than a static site generator:**
 - The viewer needs to query the SQLite database dynamically
@@ -579,3 +581,4 @@ Add a `heury ui` command that starts a local Express server serving a pre-built 
 | 2026-03-01 | ADR-008 | Updated: Enrichment fully removed (UnitSummary model, repository, get-unit-summaries/get-unenriched-units/set-unit-summaries tools deleted); pre-computed summaries redundant with raw data exposed via MCP tools | System |
 | 2026-03-01 | ADR-005 | Updated: Removed stale enrichment/embedding references (superseded by ADR-008) | System |
 | 2026-03-01 | ADR-009 | Initial: Local web UI viewer with Express + React SPA, `heury ui` command | System |
+| 2026-03-01 | ADR-009 | Updated: Added --host flag for remote access, fixed frontend types to match API responses (snake_case), SIGPIPE handling for background execution | System |
