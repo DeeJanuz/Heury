@@ -37,6 +37,7 @@ export class SqliteCodeUnitRepository implements ICodeUnitRepository {
   private readonly selectByType: Database.Statement;
   private readonly selectByLanguage: Database.Statement;
   private readonly selectAll: Database.Statement;
+  private readonly selectAllFlat: Database.Statement;
   private readonly deleteByFilePathStmt: Database.Statement;
   private readonly clearUnitsStmt: Database.Statement;
   private readonly clearPatternsStmt: Database.Statement;
@@ -78,6 +79,7 @@ export class SqliteCodeUnitRepository implements ICodeUnitRepository {
       'SELECT * FROM code_units WHERE language = ? AND parent_unit_id IS NULL',
     );
     this.selectAll = db.prepare('SELECT * FROM code_units WHERE parent_unit_id IS NULL');
+    this.selectAllFlat = db.prepare('SELECT * FROM code_units');
     this.deleteByFilePathStmt = db.prepare('DELETE FROM code_units WHERE file_path = ?');
     this.clearUnitsStmt = db.prepare('DELETE FROM code_units');
     this.clearPatternsStmt = db.prepare('DELETE FROM code_unit_patterns');
@@ -125,6 +127,11 @@ export class SqliteCodeUnitRepository implements ICodeUnitRepository {
   findAll(): CodeUnit[] {
     const rows = this.selectAll.all() as CodeUnitRow[];
     return rows.map((row) => this.rowToCodeUnit(row));
+  }
+
+  findAllFlat(): CodeUnit[] {
+    const rows = this.selectAllFlat.all() as CodeUnitRow[];
+    return rows.map((row) => this.rowToFlatCodeUnit(row));
   }
 
   deleteByFilePath(filePath: string): void {
@@ -175,6 +182,26 @@ export class SqliteCodeUnitRepository implements ICodeUnitRepository {
         parentUnitId: unit.id,
       });
     }
+  }
+
+  private rowToFlatCodeUnit(row: CodeUnitRow): CodeUnit {
+    return {
+      id: row.id,
+      filePath: row.file_path,
+      name: row.name,
+      unitType: row.unit_type as CodeUnit['unitType'],
+      lineStart: row.line_start,
+      lineEnd: row.line_end,
+      parentUnitId: row.parent_unit_id ?? undefined,
+      signature: row.signature ?? undefined,
+      isAsync: row.is_async === 1,
+      isExported: row.is_exported === 1,
+      language: row.language,
+      complexity: JSON.parse(row.complexity) as Record<string, number>,
+      complexityScore: row.complexity_score,
+      patterns: [],
+      children: [],
+    };
   }
 
   private rowToCodeUnit(row: CodeUnitRow, maxDepth = 3): CodeUnit {

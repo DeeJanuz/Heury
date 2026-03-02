@@ -83,13 +83,40 @@ export function createCodeUnitsRoutes(deps: CodeUnitsDependencies): ReturnType<t
       return;
     }
 
-    const callers = deps.functionCallRepo.findByCalleeUnitId(unit.id);
-    const callees = deps.functionCallRepo.findByCallerUnitId(unit.id);
+    const rawCallers = deps.functionCallRepo.findByCalleeUnitId(unit.id);
+    const rawCallees = deps.functionCallRepo.findByCallerUnitId(unit.id);
     const typeFields = deps.typeFieldRepo.findByParentUnitId(unit.id);
     const extractedCode = await extractSourceForUnit(deps.fileSystem, {
       filePath: unit.filePath,
       lineStart: unit.lineStart,
       lineEnd: unit.lineEnd,
+    });
+
+    // Enrich callees: caller is always the current unit
+    const callees = rawCallees.map((call) => ({
+      id: call.id,
+      callerUnitId: call.callerUnitId,
+      callerName: unit.name,
+      callerFilePath: unit.filePath,
+      calleeName: call.calleeName,
+      calleeUnitId: call.calleeUnitId ?? null,
+      calleeFilePath: call.calleeFilePath ?? '',
+      lineNumber: call.lineNumber,
+    }));
+
+    // Enrich callers: callee is the current unit, look up caller info
+    const callers = rawCallers.map((call) => {
+      const callerUnit = deps.codeUnitRepo.findById(call.callerUnitId);
+      return {
+        id: call.id,
+        callerUnitId: call.callerUnitId,
+        callerName: callerUnit?.name ?? 'unknown',
+        callerFilePath: callerUnit?.filePath ?? '',
+        calleeName: call.calleeName,
+        calleeUnitId: unit.id,
+        calleeFilePath: unit.filePath,
+        lineNumber: call.lineNumber,
+      };
     });
 
     res.json({

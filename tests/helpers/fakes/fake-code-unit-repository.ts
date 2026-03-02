@@ -34,6 +34,10 @@ export class InMemoryCodeUnitRepository implements ICodeUnitRepository {
     return [...this.units.values()];
   }
 
+  findAllFlat(): CodeUnit[] {
+    return [...this.units.values()].map((u) => ({ ...u, children: [] }));
+  }
+
   deleteByFilePath(filePath: string): void {
     for (const [id, unit] of this.units) {
       if (unit.filePath === filePath) {

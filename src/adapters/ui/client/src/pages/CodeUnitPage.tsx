@@ -334,7 +334,7 @@ const SourceCodePanel: React.FC<SourceCodePanelProps> = ({ extractedCode, filePa
     <div style={{ fontSize: '11px', color: '#999', fontFamily: 'var(--font-mono)', marginBottom: '12px' }}>
       {filePath} : {lineStart}-{lineEnd}
     </div>
-    {extractedCode !== null ? (
+    {extractedCode ? (
       <div
         style={{
           backgroundColor: '#1e1e2e',

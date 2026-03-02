@@ -191,6 +191,136 @@ describe('code-units routes', () => {
       expect((body.typeFields as unknown[])).toHaveLength(1);
     });
 
+    it('should return enriched FunctionCallRef data for callees', async () => {
+      const unitId = 'unit-1';
+      const calleeId = 'unit-2';
+      codeUnitRepo.save(createCodeUnit({
+        id: unitId,
+        filePath: 'src/a.ts', name: 'fnA', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 10, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      codeUnitRepo.save(createCodeUnit({
+        id: calleeId,
+        filePath: 'src/b.ts', name: 'helper', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 5, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      functionCallRepo.save(createFunctionCall({
+        id: 'call-1',
+        callerUnitId: unitId, calleeName: 'helper', calleeFilePath: 'src/b.ts',
+        calleeUnitId: calleeId, lineNumber: 5, isAsync: false,
+      }));
+
+      const resp = await request(app, `/api/code-units/${unitId}`);
+      const body = resp.body as Record<string, unknown>;
+      const callees = (body.functionCalls as Record<string, unknown[]>).callees;
+
+      expect(callees).toHaveLength(1);
+      expect(callees[0]).toEqual({
+        id: 'call-1',
+        callerUnitId: unitId,
+        callerName: 'fnA',
+        callerFilePath: 'src/a.ts',
+        calleeName: 'helper',
+        calleeUnitId: calleeId,
+        calleeFilePath: 'src/b.ts',
+        lineNumber: 5,
+      });
+    });
+
+    it('should return enriched FunctionCallRef data for callers', async () => {
+      const unitId = 'unit-1';
+      const callerId = 'unit-3';
+      codeUnitRepo.save(createCodeUnit({
+        id: unitId,
+        filePath: 'src/a.ts', name: 'fnA', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 10, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      codeUnitRepo.save(createCodeUnit({
+        id: callerId,
+        filePath: 'src/c.ts', name: 'caller', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 20, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      functionCallRepo.save(createFunctionCall({
+        id: 'call-2',
+        callerUnitId: callerId, calleeName: 'fnA', calleeUnitId: unitId, lineNumber: 3, isAsync: false,
+      }));
+
+      const resp = await request(app, `/api/code-units/${unitId}`);
+      const body = resp.body as Record<string, unknown>;
+      const callers = (body.functionCalls as Record<string, unknown[]>).callers;
+
+      expect(callers).toHaveLength(1);
+      expect(callers[0]).toEqual({
+        id: 'call-2',
+        callerUnitId: callerId,
+        callerName: 'caller',
+        callerFilePath: 'src/c.ts',
+        calleeName: 'fnA',
+        calleeUnitId: unitId,
+        calleeFilePath: 'src/a.ts',
+        lineNumber: 3,
+      });
+    });
+
+    it('should default calleeUnitId to null and calleeFilePath to empty string when missing', async () => {
+      const unitId = 'unit-1';
+      codeUnitRepo.save(createCodeUnit({
+        id: unitId,
+        filePath: 'src/a.ts', name: 'fnA', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 10, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      functionCallRepo.save(createFunctionCall({
+        id: 'call-3',
+        callerUnitId: unitId, calleeName: 'externalFn', lineNumber: 7, isAsync: false,
+      }));
+
+      const resp = await request(app, `/api/code-units/${unitId}`);
+      const body = resp.body as Record<string, unknown>;
+      const callees = (body.functionCalls as Record<string, unknown[]>).callees;
+
+      expect(callees).toHaveLength(1);
+      expect(callees[0]).toEqual({
+        id: 'call-3',
+        callerUnitId: unitId,
+        callerName: 'fnA',
+        callerFilePath: 'src/a.ts',
+        calleeName: 'externalFn',
+        calleeUnitId: null,
+        calleeFilePath: '',
+        lineNumber: 7,
+      });
+    });
+
+    it('should use caller code unit name/path even when caller unit is not found', async () => {
+      const unitId = 'unit-1';
+      codeUnitRepo.save(createCodeUnit({
+        id: unitId,
+        filePath: 'src/a.ts', name: 'fnA', unitType: CodeUnitType.FUNCTION,
+        lineStart: 1, lineEnd: 10, isAsync: false, isExported: true, language: 'typescript',
+      }));
+      // caller unit 'missing-unit' is NOT in the repo
+      functionCallRepo.save(createFunctionCall({
+        id: 'call-4',
+        callerUnitId: 'missing-unit', calleeName: 'fnA', calleeUnitId: unitId, lineNumber: 10, isAsync: false,
+      }));
+
+      const resp = await request(app, `/api/code-units/${unitId}`);
+      const body = resp.body as Record<string, unknown>;
+      const callers = (body.functionCalls as Record<string, unknown[]>).callers;
+
+      expect(callers).toHaveLength(1);
+      expect(callers[0]).toEqual({
+        id: 'call-4',
+        callerUnitId: 'missing-unit',
+        callerName: 'unknown',
+        callerFilePath: '',
+        calleeName: 'fnA',
+        calleeUnitId: unitId,
+        calleeFilePath: 'src/a.ts',
+        lineNumber: 10,
+      });
+    });
+
     it('should return 404 for missing code unit', async () => {
       const resp = await request(app, '/api/code-units/nonexistent');
 

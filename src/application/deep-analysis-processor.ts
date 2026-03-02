@@ -14,6 +14,7 @@ import { createFunctionCall, createTypeField, createEventFlow, createSchemaModel
 import { CodeUnitType } from '@/domain/models/index.js';
 import type { IFunctionCallRepository, ITypeFieldRepository, IEventFlowRepository, ISchemaModelRepository, IGuardClauseRepository, IFileDependencyRepository, IFileClusterRepository, IPatternTemplateRepository, ICodeUnitRepository } from '@/domain/ports/index.js';
 import { detectPatternTemplates } from './pattern-templates/template-analyzer.js';
+import { resolveCallees } from './callee-resolver.js';
 import { extractFunctionCalls } from '@/extraction/call-graph-extractor.js';
 import { extractTypeFields } from '@/extraction/type-field-extractor.js';
 import { extractEventFlows } from '@/extraction/event-flow-extractor.js';
@@ -42,6 +43,7 @@ export interface DeepAnalysisResult {
   readonly guardsExtracted: number;
   readonly clustersComputed: number;
   readonly templatesDetected: number;
+  readonly calleesResolved: number;
 }
 
 /**
@@ -227,6 +229,16 @@ export function processDeepAnalysis(
     }
   }
 
+  // Resolve callee names to code unit records
+  let calleesResolved = 0;
+  if (deps.codeUnitRepo) {
+    const resolution = resolveCallees({
+      codeUnitRepo: deps.codeUnitRepo,
+      functionCallRepo: deps.functionCallRepo,
+    });
+    calleesResolved = resolution.resolved;
+  }
+
   return {
     functionCallsExtracted,
     typeFieldsExtracted,
@@ -235,6 +247,7 @@ export function processDeepAnalysis(
     guardsExtracted,
     clustersComputed,
     templatesDetected,
+    calleesResolved,
   };
 }
 

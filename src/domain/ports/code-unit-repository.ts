@@ -8,6 +8,7 @@ export interface ICodeUnitRepository {
   findByType(unitType: CodeUnitType): CodeUnit[];
   findByLanguage(language: string): CodeUnit[];
   findAll(): CodeUnit[];
+  findAllFlat(): CodeUnit[];
   deleteByFilePath(filePath: string): void;
   clear(): void;
 }
