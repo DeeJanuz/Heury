@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-03-02
-**Total Active Issues:** 16
+**Total Active Issues:** 14
 
 ---
 
@@ -80,12 +80,11 @@
 - **Resolution:** Extracted `buildAdjacencyGraph(deps, direction?)` to `src/application/graph-analysis/graph-utils.ts`. Both `transitive-deps.ts` and `circular-deps.ts` now use the shared utility.
 - **Resolved:** 2026-03-02, commit fc12ce2
 
-#### [LOW-010] generatePatternsManifest Growing Positional Parameter List (5 Params)
+#### ~~[LOW-010] generatePatternsManifest Growing Positional Parameter List (5 Params -- RESOLVED)~~
 - **File:** `src/application/manifest/patterns-generator.ts`
 - **Principle:** SRP (secondary: readability)
-- **Description:** `generatePatternsManifest` now accepts 5 positional parameters (`codeUnitRepo`, `envVarRepo`, `maxTokens`, `eventFlowRepo?`, `patternTemplateRepo?`), two of which are optional trailing params. This mirrors the same issue already tracked in LOW-008 for `generateModulesManifest`. Adding another optional repo will make call sites difficult to read. The function signature is fragile because optional positional params must maintain order.
-- **Suggested Fix:** Bundle the repository dependencies into a `PatternsGeneratorDeps` interface object, consistent with the fix suggested for LOW-008. This would unify the approach across all manifest generators.
-- **Detected:** 2026-02-28, commit 6211e80
+- **Resolution:** Introduced `PatternsGeneratorDeps` interface. Function now accepts a single deps object instead of 5 positional parameters. All call sites and tests updated.
+- **Resolved:** 2026-03-02, commit 26feb36
 
 #### [LOW-009] deep-analysis-processor.ts processDeepAnalysis Accumulating Extraction Responsibilities
 - **File:** `src/application/deep-analysis-processor.ts`
@@ -95,12 +94,11 @@
 - **Detected:** 2026-02-28, commit 6211e80
 - **Updated:** 2026-03-02, commit b4fea3e (added `onStep` callback with optional `detail` parameter for per-file progress within deep analysis blocks; added throttled progress emission in block 1)
 
-#### [LOW-008] generateModulesManifest Growing Parameter List (5 Positional Params)
+#### ~~[LOW-008] generateModulesManifest Growing Parameter List (5 Positional Params -- RESOLVED)~~
 - **File:** `src/application/manifest/modules-generator.ts`
 - **Principle:** SRP (secondary: readability)
-- **Description:** `generateModulesManifest` now accepts 5 positional parameters (`codeUnitRepo`, `dependencyRepo`, `maxTokens`, `typeFieldRepo?`, `fileClusterRepo?`), two of which are optional trailing params. This is not severe but is on the boundary of parameter-object refactoring territory. Adding another optional repo will make call sites difficult to read and the signature fragile (optional positional params must maintain order).
-- **Suggested Fix:** Bundle the repository dependencies into a single `ModulesGeneratorDeps` interface object, keeping `maxTokens` as a separate parameter or part of an options object. This matches the pattern already used by `DeepAnalysisDependencies` and `AnalysisDependencies` in the same codebase. Low urgency since only 5 params currently.
-- **Detected:** 2026-02-28, commit a1b78ca
+- **Resolution:** Introduced `ModulesGeneratorDeps` interface. Function now accepts a single deps object instead of 5 positional parameters. All call sites and tests updated.
+- **Resolved:** 2026-03-02, commit 26feb36
 
 #### ~~[LOW-006] Duplicated getLineNumber Utility Across Extractors (RESOLVED)~~
 - **File:** `src/extraction/event-flow-extractor.ts`, `src/extraction/schema-model-extractor.ts`
@@ -163,9 +161,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 16 |
+| Total Active | 14 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 5 |
-| Low | 11 |
-| Resolved This Commit | 5 (LOW-006, LOW-011, LOW-012, LOW-014, MED-004) |
+| Low | 9 |
+| Resolved This Commit | 2 (LOW-008, LOW-010) |
