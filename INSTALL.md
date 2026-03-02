@@ -18,7 +18,7 @@ Heury is a local-first codebase analysis tool that extracts structure, patterns,
 1. Clone the repository:
 
 ```sh
-git clone https://github.com/djgrant/heury.git
+git clone https://github.com/DeeJanuz/heury.git
 cd heury
 ```
 
@@ -134,6 +134,15 @@ heury hook install
 This installs a `post-commit` git hook that runs `heury analyze --incremental`.
 
 Remove it with `heury hook remove`.
+
+## Viewing Analysis from the UI
+
+To visually inspect the results of the analysis run:
+
+```sh
+heury ui
+```
+This will start up a local server on port 3939 which you can then visit and inspect.
 
 ## Troubleshooting
 

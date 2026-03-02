@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { SearchPage } from './pages/SearchPage';
 import { ClusterMapPage } from './pages/ClusterMapPage';
 import { CodeUnitPage } from './pages/CodeUnitPage';
+import type { Stats } from './types';
 
 function getHash(): string {
   return window.location.hash || '#/';
@@ -39,11 +40,25 @@ function parseRoute(hash: string): Route {
 
 export const App: React.FC = () => {
   const [hash, setHash] = useState(getHash);
+  const [projectName, setProjectName] = useState<string>();
+  const [projectDir, setProjectDir] = useState<string>();
 
   useEffect(() => {
     const onHashChange = () => setHash(getHash());
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then((res) => res.json())
+      .then((data: Stats) => {
+        setProjectName(data.project_name);
+        setProjectDir(data.project_dir);
+      })
+      .catch(() => {
+        // Stats fetch failed — project context unavailable
+      });
   }, []);
 
   const navigate = useCallback((newHash: string) => {
@@ -69,7 +84,7 @@ export const App: React.FC = () => {
   }
 
   return (
-    <Layout currentRoute={hash} onNavigate={navigate}>
+    <Layout currentRoute={hash} onNavigate={navigate} projectName={projectName} projectDir={projectDir}>
       {page}
     </Layout>
   );

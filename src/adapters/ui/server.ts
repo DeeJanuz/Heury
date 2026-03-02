@@ -33,6 +33,7 @@ export interface UiServerDependencies {
   typeFieldRepo: ITypeFieldRepository;
   eventFlowRepo: IEventFlowRepository;
   fileClusterRepo: IFileClusterRepository;
+  projectDir: string;
 }
 
 export interface UiServer {
@@ -47,7 +48,13 @@ export function createUiServer(deps: UiServerDependencies): UiServer {
   app.use(express.json());
 
   // API routes
-  app.use('/api', createStatsRoutes(deps));
+  app.use('/api', createStatsRoutes({
+    codeUnitRepo: deps.codeUnitRepo,
+    dependencyRepo: deps.dependencyRepo,
+    envVarRepo: deps.envVarRepo,
+    fileClusterRepo: deps.fileClusterRepo,
+    projectDir: deps.projectDir,
+  }));
   app.use('/api', createCodeUnitsRoutes(deps));
   app.use('/api', createSearchRoutes(deps));
   app.use('/api', createDependenciesRoutes(deps));

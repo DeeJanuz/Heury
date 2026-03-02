@@ -4,6 +4,8 @@ interface LayoutProps {
   children: React.ReactNode;
   currentRoute: string;
   onNavigate: (hash: string) => void;
+  projectName?: string;
+  projectDir?: string;
 }
 
 interface NavItem {
@@ -18,7 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { hash: '#/clusters', label: 'Clusters', icon: '\u2B21' },
 ];
 
-export const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate }) => {
+export const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNavigate, projectName, projectDir }) => {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <aside
@@ -51,6 +53,22 @@ export const Layout: React.FC<LayoutProps> = ({ children, currentRoute, onNaviga
           <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>
             Codebase Analysis
           </p>
+          {projectName && (
+            <p
+              title={projectDir}
+              style={{
+                margin: '8px 0 0',
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.7)',
+                fontFamily: 'var(--font-mono)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {projectName}
+            </p>
+          )}
         </div>
 
         <nav style={{ padding: '16px 0', flex: 1 }}>

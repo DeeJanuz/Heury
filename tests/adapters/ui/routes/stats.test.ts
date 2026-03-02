@@ -34,7 +34,7 @@ describe('GET /api/stats', () => {
     fileClusterRepo = new InMemoryFileClusterRepository();
 
     app = express();
-    app.use('/api', createStatsRoutes({ codeUnitRepo, dependencyRepo, envVarRepo, fileClusterRepo }));
+    app.use('/api', createStatsRoutes({ codeUnitRepo, dependencyRepo, envVarRepo, fileClusterRepo, projectDir: '/home/user/my-project' }));
   });
 
   it('should return zeros for empty repos', async () => {
@@ -49,6 +49,8 @@ describe('GET /api/stats', () => {
       total_env_variables: 0,
       languages: {},
       total_clusters: 0,
+      project_dir: '/home/user/my-project',
+      project_name: 'my-project',
     });
   });
 
@@ -126,6 +128,14 @@ describe('GET /api/stats', () => {
     const body = resp.body as Record<string, unknown>;
 
     expect(body.total_patterns).toBe(2);
+  });
+
+  it('should include project directory and name in response', async () => {
+    const resp = await request(app, '/api/stats');
+    const body = resp.body as Record<string, unknown>;
+
+    expect(body.project_dir).toBe('/home/user/my-project');
+    expect(body.project_name).toBe('my-project');
   });
 
   it('should count unique files not total code units for total_files', async () => {

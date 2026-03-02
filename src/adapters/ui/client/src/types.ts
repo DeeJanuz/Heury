@@ -6,6 +6,8 @@ export interface Stats {
   total_env_variables: number;
   languages: Record<string, number>;
   total_clusters: number;
+  project_dir: string;
+  project_name: string;
 }
 
 export interface Pattern {

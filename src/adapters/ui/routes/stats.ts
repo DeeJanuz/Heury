@@ -2,6 +2,7 @@
  * API routes for analysis stats.
  */
 
+import path from 'node:path';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import type {
@@ -17,6 +18,7 @@ interface StatsDependencies {
   dependencyRepo: IFileDependencyRepository;
   envVarRepo: IEnvVariableRepository;
   fileClusterRepo: IFileClusterRepository;
+  projectDir: string;
 }
 
 export function createStatsRoutes(deps: StatsDependencies): ReturnType<typeof Router> {
@@ -48,6 +50,8 @@ export function createStatsRoutes(deps: StatsDependencies): ReturnType<typeof Ro
       total_env_variables: allEnvVars.length,
       languages,
       total_clusters: allClusters.length,
+      project_dir: deps.projectDir,
+      project_name: path.basename(deps.projectDir),
     });
   }));
 
