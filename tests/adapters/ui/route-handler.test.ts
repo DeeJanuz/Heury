@@ -40,6 +40,18 @@ describe('wrapHandler', () => {
     expect(resp.body).toEqual({ error: 'a string error' });
   });
 
+  it('should catch async handler rejections and return 500 with message', async () => {
+    const app = express();
+    app.get('/test', wrapHandler(async () => {
+      throw new Error('Async failure');
+    }));
+
+    const resp = await request(app, '/test');
+
+    expect(resp.status).toBe(500);
+    expect(resp.body).toEqual({ error: 'Async failure' });
+  });
+
   it('should preserve custom status codes set before error', async () => {
     const app = express();
     app.get('/test', wrapHandler((_req, res) => {
