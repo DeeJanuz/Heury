@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-03-02
-**Total Active Issues:** 13
+**Total Active Issues:** 12
 
 ---
 
@@ -9,20 +9,20 @@
 
 ### Medium Severity
 
-#### [MED-010] ClusterGraph.tsx at 671 Lines with 5+ Responsibilities (SRP)
+#### ~~[MED-010] ClusterGraph.tsx at 671 Lines with 5+ Responsibilities (SRP -- RESOLVED)~~
 - **File:** `src/adapters/ui/client/src/components/ClusterGraph.tsx`
 - **Principle:** SRP
-- **Description:** This single file now contains: (1) force-directed layout computation (`buildLayoutedElements`, ~200 lines), (2) connected component graph analysis (`findConnectedComponents`), (3) color theme management (`getGroupColor`/`GROUP_HUES`), (4) a full typeahead search widget (`ClusterSearch`, ~200 lines with keyboard navigation and ARIA), (5) graph rendering (`ClusterGraph`), and (6) two custom node types (`ClusterNode`, `GroupBackgroundNode`). The `buildLayoutedElements` function is a god-function orchestrating simulation setup, initial positioning, force configuration, halo node generation, and color assignment. The `ClusterSearch` component is fully self-contained and could be extracted to its own file. `findConnectedComponents` is a pure graph algorithm that belongs in a utility.
-- **Suggested Fix:** Extract `ClusterSearch` into `ClusterSearch.tsx`. Extract `findConnectedComponents` and layout logic into `cluster-layout.ts`. Extract color theme into `cluster-colors.ts`. This would reduce `ClusterGraph.tsx` to ~150 lines of composition and rendering.
+- **Resolution:** Decomposed into 6 focused modules: `ClusterSearch.tsx` (search overlay, 217 lines), `cluster-nodes.tsx` (custom node components, 98 lines), `lib/graph-utils.ts` (connected component BFS algorithm, 47 lines), `lib/cluster-colors.ts` (color theme with exported `GroupColor` type, 29 lines), `lib/cluster-layout.ts` (d3-force layout engine, 249 lines). Main `ClusterGraph.tsx` reduced from 672 to 93 lines of pure composition. Each module has a single, clear responsibility.
 - **Detected:** 2026-03-01, commit f82edf3
+- **Resolved:** 2026-03-02, commit 95db577
 
 #### [MED-009] UI Frontend Has No Test Coverage (Downgraded from HIGH-001)
 - **File:** `src/adapters/ui/frontend/**`
 - **Principle:** Quality / TDD
-- **Description:** Backend route handlers now have 62 tests across 8 test files covering all 7 route factories, the `wrapHandler` utility, the `cluster-detail` module, and shared test helpers (commit 77e5c75). Remaining untested: the frontend `useApi` hook, `parseRoute` function, and React components. These are lower risk than the backend routes but still contain testable logic. Additionally, `findConnectedComponents` and `buildLayoutedElements` in ClusterGraph.tsx are pure functions highly amenable to unit testing, and the `wrapHandler` async error path added in commit f82edf3 lacks test coverage.
-- **Suggested Fix:** Add unit tests for `parseRoute` hash parsing and the `useApi` hook state management. Add tests for `findConnectedComponents` and the async error path in `wrapHandler`. React component tests are lower priority.
+- **Description:** Backend route handlers now have 62 tests across 8 test files covering all 7 route factories, the `wrapHandler` utility, the `cluster-detail` module, and shared test helpers (commit 77e5c75). Remaining untested: the frontend `useApi` hook, `parseRoute` function, and React components. These are lower risk than the backend routes but still contain testable logic. The pure functions extracted from ClusterGraph.tsx -- `findConnectedComponents` (in `lib/graph-utils.ts`) and `buildLayoutedElements` (in `lib/cluster-layout.ts`) -- are now in dedicated modules highly amenable to unit testing, and the `wrapHandler` async error path added in commit f82edf3 lacks test coverage.
+- **Suggested Fix:** Add unit tests for `findConnectedComponents`, `buildLayoutedElements`, `getGroupColor`, `parseRoute`, and the `useApi` hook. Add test for async error path in `wrapHandler`. React component tests are lower priority.
 - **Detected:** 2026-03-01, commit 5ece8c4
-- **Updated:** 2026-03-01, commit f82edf3 (ClusterGraph.tsx gained ~500 lines of untested pure logic; wrapHandler async path untested)
+- **Updated:** 2026-03-02, commit 95db577 (pure functions now in separate testable modules after ClusterGraph decomposition)
 
 #### [MED-008] UI Routes: search.ts and stats.ts Still Use findAll (Scalability -- Partially Resolved)
 - **File:** `src/adapters/ui/routes/search.ts`, `src/adapters/ui/routes/stats.ts`
@@ -161,9 +161,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 13 |
+| Total Active | 12 |
 | Critical | 0 |
 | High | 0 |
-| Medium | 4 |
+| Medium | 3 |
 | Low | 9 |
-| Resolved This Cycle | 1 (MED-005) |
+| Resolved This Cycle | 2 (MED-005, MED-010) |
