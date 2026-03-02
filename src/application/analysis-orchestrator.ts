@@ -38,12 +38,14 @@ import { extractEnvVariables, isEnvExampleFile } from '@/extraction/env-extracto
 import { shouldProcessFile, type FileFilterOptions } from './file-filter.js';
 import { processFile, type FileProcessingResult } from './file-processor.js';
 import { processDeepAnalysis } from './deep-analysis-processor.js';
+import type { ProgressCallback } from './analysis-progress.js';
 
 export interface AnalysisOptions {
   readonly rootDir: string;
   readonly include?: string[];
   readonly exclude?: string[];
   readonly skipTests?: boolean;
+  readonly onProgress?: ProgressCallback;
 }
 
 export interface AnalysisDependencies {
@@ -79,6 +81,7 @@ export class AnalysisOrchestrator {
         rootDir: options.rootDir,
         filterOpts,
         clearBeforeProcessing: false,
+        onProgress: options.onProgress,
       });
 
       const duration = Date.now() - startTime;
@@ -111,6 +114,7 @@ export class AnalysisOrchestrator {
         rootDir: options.rootDir,
         filterOpts,
         clearBeforeProcessing: true,
+        onProgress: options.onProgress,
       });
 
       const duration = Date.now() - startTime;
@@ -144,6 +148,7 @@ export class AnalysisOrchestrator {
       rootDir: string;
       filterOpts: Partial<FileFilterOptions>;
       clearBeforeProcessing: boolean;
+      onProgress?: ProgressCallback;
     },
   ): Promise<{
     filesProcessed: number;
@@ -163,6 +168,10 @@ export class AnalysisOrchestrator {
     // Collect results for deep analysis
     const allFileResults: FileProcessingResult[] = [];
     const allFileContents = new Map<string, string>();
+
+    // Count total processable files for progress (approximate — uses full list)
+    const totalFiles = files.length;
+    let lastEmitTime = 0;
 
     for (const filePath of files) {
       const absolutePath = this.resolveFilePath(filePath, options.rootDir);
@@ -224,6 +233,23 @@ export class AnalysisOrchestrator {
         if (result.content !== undefined) {
           allFileContents.set(filePath, result.content);
         }
+
+        // Emit progress (throttled)
+        if (options.onProgress) {
+          const now = Date.now();
+          if (now - lastEmitTime >= 80 || filesProcessed === totalFiles) {
+            lastEmitTime = now;
+            options.onProgress({
+              phase: 'analyzing',
+              filesProcessed,
+              totalFiles,
+              codeUnitsExtracted,
+              patternsDetected,
+              dependenciesFound,
+              currentFile: basename(filePath),
+            });
+          }
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`Warning: Failed to process file '${filePath}': ${message}`);
@@ -231,8 +257,32 @@ export class AnalysisOrchestrator {
       }
     }
 
+    // Always emit final state after file processing loop
+    if (options.onProgress && filesProcessed > 0) {
+      options.onProgress({
+        phase: 'analyzing',
+        filesProcessed,
+        totalFiles,
+        codeUnitsExtracted,
+        patternsDetected,
+        dependenciesFound,
+      });
+    }
+
     // Run deep analysis if repositories are provided
     if (this.hasDeepAnalysisDeps()) {
+      const onStep = options.onProgress ? (stepName: string) => {
+        options.onProgress!({
+          phase: 'deep-analysis',
+          filesProcessed,
+          totalFiles,
+          codeUnitsExtracted,
+          patternsDetected,
+          dependenciesFound,
+          deepAnalysisStep: stepName,
+        });
+      } : undefined;
+
       processDeepAnalysis(allFileResults, allFileContents, {
         functionCallRepo: this.deps.functionCallRepo!,
         typeFieldRepo: this.deps.typeFieldRepo!,
@@ -243,7 +293,7 @@ export class AnalysisOrchestrator {
         fileClusterRepo: this.deps.fileClusterRepo,
         codeUnitRepo: this.deps.codeUnitRepo,
         patternTemplateRepo: this.deps.patternTemplateRepo,
-      });
+      }, onStep);
     }
 
     return {

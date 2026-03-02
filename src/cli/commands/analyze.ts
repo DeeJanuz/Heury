@@ -10,6 +10,7 @@ import type { HeuryConfig } from '@/domain/ports/config-provider.js';
 import { loadConfig } from '@/config/loader.js';
 import { createCompositionRoot } from '@/composition-root.js';
 import { NodeFileSystem } from '@/adapters/filesystem/node-filesystem.js';
+import { createProgressRenderer } from '../progress-renderer.js';
 
 export interface AnalyzeOptions {
   dir: string;
@@ -39,20 +40,23 @@ export async function analyzeCommand(
     }
 
     const orchestrator = new AnalysisOrchestrator(dependencies);
+    const progress = createProgressRenderer();
     const result = await orchestrator.analyze({
       rootDir: config.rootDir,
       include: config.include,
       exclude: config.exclude,
+      onProgress: progress.onProgress,
     });
 
     if (result.success && result.stats) {
-      console.log('Analysis complete:');
-      console.log(`  Files processed: ${result.stats.filesProcessed}`);
-      console.log(`  Code units: ${result.stats.codeUnitsExtracted}`);
-      console.log(`  Patterns: ${result.stats.patternsDetected}`);
-      console.log(`  Dependencies: ${result.stats.dependenciesFound}`);
-      console.log(`  Env variables: ${result.stats.envVariablesFound}`);
-      console.log(`  Duration: ${result.stats.duration}ms`);
+      progress.onProgress({
+        phase: 'manifests',
+        filesProcessed: result.stats.filesProcessed,
+        totalFiles: result.stats.filesProcessed,
+        codeUnitsExtracted: result.stats.codeUnitsExtracted,
+        patternsDetected: result.stats.patternsDetected,
+        dependenciesFound: result.stats.dependenciesFound,
+      });
 
       await generateManifests(
         {
@@ -72,6 +76,16 @@ export async function analyzeCommand(
           totalTokenBudget: config.manifestTokenBudget,
         },
       );
+
+      progress.finish();
+
+      console.log('Analysis complete:');
+      console.log(`  Files processed: ${result.stats.filesProcessed}`);
+      console.log(`  Code units: ${result.stats.codeUnitsExtracted}`);
+      console.log(`  Patterns: ${result.stats.patternsDetected}`);
+      console.log(`  Dependencies: ${result.stats.dependenciesFound}`);
+      console.log(`  Env variables: ${result.stats.envVariablesFound}`);
+      console.log(`  Duration: ${result.stats.duration}ms`);
 
       const manifestList = dependencies.schemaModelRepo
         ? 'MODULES.md, PATTERNS.md, DEPENDENCIES.md, HOTSPOTS.md, SCHEMA.md'

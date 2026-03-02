@@ -15,6 +15,7 @@ export {
   type DeepAnalysisDependencies,
   type DeepAnalysisResult,
 } from './deep-analysis-processor.js';
+export { type AnalysisProgress, type ProgressCallback } from './analysis-progress.js';
 export {
   estimateTokens,
   allocateBudget,

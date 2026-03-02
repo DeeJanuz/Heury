@@ -82,6 +82,7 @@ export function processDeepAnalysis(
   fileResults: FileProcessingResult[],
   fileContents: Map<string, string>,
   deps: DeepAnalysisDependencies,
+  onStep?: (stepName: string) => void,
 ): DeepAnalysisResult {
   let functionCallsExtracted = 0;
   let typeFieldsExtracted = 0;
@@ -90,6 +91,7 @@ export function processDeepAnalysis(
   let schemaModelsExtracted = 0;
 
   // Process each file's code units
+  onStep?.('function calls & type fields');
   for (const fileResult of fileResults) {
     const allFunctionCalls: ReturnType<typeof createFunctionCall>[] = [];
     const allTypeFields: ReturnType<typeof createTypeField>[] = [];
@@ -127,6 +129,7 @@ export function processDeepAnalysis(
   }
 
   // Extract schema models from file contents
+  onStep?.('schema models');
   for (const [filePath, content] of fileContents) {
     const extractedModels = extractSchemaModels(content, filePath);
     for (const extracted of extractedModels) {
@@ -165,6 +168,7 @@ export function processDeepAnalysis(
   }
 
   // Compute file clusters from dependency graph
+  onStep?.('file clustering');
   let clustersComputed = 0;
   if (deps.fileClusterRepo && deps.dependencyRepo) {
     const fileDeps = deps.dependencyRepo.findAll();
@@ -196,6 +200,7 @@ export function processDeepAnalysis(
   }
 
   // Detect pattern templates from all code units
+  onStep?.('pattern templates');
   let templatesDetected = 0;
   if (deps.patternTemplateRepo && deps.codeUnitRepo) {
     const allCodeUnits = deps.codeUnitRepo.findAll();
@@ -230,6 +235,7 @@ export function processDeepAnalysis(
   }
 
   // Resolve callee names to code unit records
+  onStep?.('callee resolution');
   let calleesResolved = 0;
   if (deps.codeUnitRepo) {
     const resolution = resolveCallees({
