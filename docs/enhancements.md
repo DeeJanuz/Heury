@@ -1,7 +1,7 @@
 # Technical Debt & Enhancement Log
 
 **Last Updated:** 2026-03-02
-**Total Active Issues:** 12
+**Total Active Issues:** 11
 
 ---
 
@@ -19,10 +19,10 @@
 #### [MED-009] UI Frontend Has No Test Coverage (Downgraded from HIGH-001)
 - **File:** `src/adapters/ui/frontend/**`
 - **Principle:** Quality / TDD
-- **Description:** Backend route handlers now have 62 tests across 8 test files covering all 7 route factories, the `wrapHandler` utility, the `cluster-detail` module, and shared test helpers (commit 77e5c75). Remaining untested: the frontend `useApi` hook, `parseRoute` function, and React components. These are lower risk than the backend routes but still contain testable logic. The pure functions extracted from ClusterGraph.tsx -- `findConnectedComponents` (in `lib/graph-utils.ts`) and `buildLayoutedElements` (in `lib/cluster-layout.ts`) -- are now in dedicated modules highly amenable to unit testing, and the `wrapHandler` async error path added in commit f82edf3 lacks test coverage.
-- **Suggested Fix:** Add unit tests for `findConnectedComponents`, `buildLayoutedElements`, `getGroupColor`, `parseRoute`, and the `useApi` hook. Add test for async error path in `wrapHandler`. React component tests are lower priority.
+- **Description:** Backend route handlers now have 62 tests across 8 test files covering all 7 route factories, the `wrapHandler` utility, the `cluster-detail` module, and shared test helpers (commit 77e5c75). The pure functions `findConnectedComponents` (8 tests) and `buildLayoutedElements` (9 tests) now have full unit test coverage (commit d8f3efd). The `wrapHandler` async error path is also now covered (see LOW-022). Remaining untested: the frontend `useApi` hook, `parseRoute` function, `getGroupColor`, and React components. These are lower risk but still contain testable logic.
+- **Suggested Fix:** Add unit tests for `getGroupColor`, `parseRoute`, and the `useApi` hook. React component tests are lowest priority.
 - **Detected:** 2026-03-01, commit 5ece8c4
-- **Updated:** 2026-03-02, commit 95db577 (pure functions now in separate testable modules after ClusterGraph decomposition)
+- **Updated:** 2026-03-02, commit d8f3efd (findConnectedComponents, buildLayoutedElements, and wrapHandler async path now covered)
 
 #### [MED-008] UI Routes: search.ts and stats.ts Still Use findAll (Scalability -- Partially Resolved)
 - **File:** `src/adapters/ui/routes/search.ts`, `src/adapters/ui/routes/stats.ts`
@@ -141,12 +141,12 @@
 - **Suggested Fix:** Investigate whether the process actually exits without this line. If it does (e.g., due to SIGPIPE closing stdio handles), document the reason in a comment. If it does not, remove the line.
 - **Detected:** 2026-03-01, commit d5867e1
 
-#### [LOW-022] wrapHandler Async Error Path Has No Test Coverage
+#### ~~[LOW-022] wrapHandler Async Error Path Has No Test Coverage (RESOLVED)~~
 - **File:** `src/adapters/ui/route-handler.ts`
 - **Principle:** Quality / TDD
-- **Description:** The `wrapHandler` utility was extended in commit f82edf3 to support async route handlers via `Promise` detection and `.catch()`. The synchronous error path has test coverage but the new async error path does not. If the async catch logic regresses (e.g., a future refactor drops the `instanceof Promise` check), the error would surface as an unhandled promise rejection rather than a 500 response.
-- **Suggested Fix:** Add a test case in `route-handler.test.ts` that passes an async handler which throws, and verify it returns a 500 JSON error response. Trivial addition.
+- **Resolution:** Added async rejection test in `route-handler.test.ts` that passes an async handler which throws and verifies it returns a 500 JSON error response with the error message. Async catch branch now fully covered.
 - **Detected:** 2026-03-01, commit f82edf3
+- **Resolved:** 2026-03-02, commit d8f3efd
 
 #### [LOW-002] LanguageExtractor Interface Could Be Segregated
 - **File:** `src/extraction/language-registry.ts`
@@ -161,9 +161,9 @@
 
 | Metric | Value |
 |--------|-------|
-| Total Active | 12 |
+| Total Active | 11 |
 | Critical | 0 |
 | High | 0 |
 | Medium | 3 |
-| Low | 9 |
-| Resolved This Cycle | 2 (MED-005, MED-010) |
+| Low | 8 |
+| Resolved This Cycle | 3 (MED-005, MED-010, LOW-022) |
